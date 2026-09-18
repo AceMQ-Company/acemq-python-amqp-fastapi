@@ -1,0 +1,22 @@
+AceMQ for FastAPI
+Copyright 2026 AceMQ
+
+This product includes software developed at AceMQ (https://acemq.com).
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+FastAPI and Starlette are the work of their authors and are named here only to
+describe what this package integrates with. This project is an independent
+integration for the AceMQ AMQP library. It is not part of either project and is
+not affiliated with, endorsed by, or sponsored by them.
+
+RabbitMQ is a trademark of Broadcom Inc. and/or its subsidiaries. References to
+RabbitMQ describe compatibility only.
+
+Python is a trademark of the Python Software Foundation.
+
+This product depends on software developed by third parties, each under its own
+licence. What a given install actually pulled is in the wheel metadata and in
+`pip show`.

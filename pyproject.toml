@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "acemq-amqp-fastapi"
+version = "0.1.0"
+description = "FastAPI integration for AceMQ AMQP: a lifespan that owns the connection and the consumers, and dependencies for publishing from a route"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "AceMQ" }]
+keywords = ["amqp", "rabbitmq", "messaging", "acemq", "fastapi", "asgi"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Networking",
+  "Typing :: Typed",
+]
+
+# The floor is the library's floor, because this package is only useful with the
+# library. aio-pika arrives with it: a FastAPI integration that cannot reach a
+# broker without a second install is an integration that does not integrate.
+#
+# pydantic-settings is a dependency rather than an extra, and that is the one
+# judgement call in this list. FastAPI already depends on pydantic, so the marginal
+# cost is one small package that does nothing but read environment variables into a
+# model — and the alternative is this package growing its own parser for durations,
+# nested keys and .env files, which is how a settings layer that nobody asked for
+# ends up being maintained forever. The starter this is modelled on does not write
+# its own binder either; it uses Spring's.
+dependencies = [
+  "acemq-amqp[rabbitmq]>=0.6.0,<0.7",
+  "fastapi>=0.110",
+  "pydantic-settings>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27",
+  "mypy>=1.11",
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.6",
+  "uvicorn>=0.29",
+]
+
+[project.urls]
+Homepage = "https://acemq.org"
+Source = "https://github.com/AceMQ-Company/acemq-python-amqp-fastapi"
+Issues = "https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/acemq_fastapi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Integration tests need a broker and are marked, so `pytest -m "not integration"`
+# on a laptop with no Docker runs everything that does not.
+markers = ["integration: needs a running broker"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 96
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+# The test helpers are imported by name because tests/ is not a package — pytest
+# puts the directory on sys.path. Without this, ruff files them under third-party
+# and then disagrees with itself about the order.
+known-first-party = ["acemq_fastapi", "conftest", "fake_transport"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["aio_pika.*", "aiormq.*"]
+ignore_missing_imports = true
