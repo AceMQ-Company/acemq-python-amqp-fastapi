@@ -24,8 +24,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from acemq_fastapi import AceMQ, AceMQSettings
-from acemq_fastapi.health import blocked_state
 from fake_transport import FakeConnectionFactory
+
+#: The sentence every AceMQ library writes for a blocked connection, spelled out
+#: here rather than imported from ``acemq_amqp``. It is an alert-rule contract, so
+#: a library release that changes the wording has to break this test and be
+#: written down, not be followed silently.
+BLOCKED = "the broker has blocked this connection; publishing is paused"
 
 
 def build(**settings: Any) -> tuple[AceMQ, FakeConnectionFactory]:
@@ -66,7 +71,7 @@ async def test_a_blocked_connection_is_up_with_the_reason() -> None:
 
     assert report.status is HealthStatus.UP
     assert report.healthy
-    assert "back pressure" in report.detail
+    assert report.detail == BLOCKED
     assert report.parts["blocked"] is True
 
 
@@ -74,9 +79,10 @@ async def test_a_blocked_broker_that_stops_answering_is_still_up() -> None:
     """Blocked and wedged at once, which is what it actually looks like.
 
     RabbitMQ stops reading from a blocked connection's socket, so the round trip
-    the library's own health check makes does not come back. That check has no
-    deadline of its own — this one imposes ``acemq.health.timeout``, then looks at
-    the blocked state again before deciding.
+    a health probe makes does not come back. The library reads the blocked state
+    before it probes and skips the probe entirely, so this answers immediately
+    rather than after the timeout — which is why the wedged transport here, whose
+    ``queue_exists`` never returns, does not hold the check up.
     """
     acemq, factory = build(health={"timeout": 0.1})
     async with acemq.lifespan(FastAPI()):
@@ -88,8 +94,9 @@ async def test_a_blocked_broker_that_stops_answering_is_still_up() -> None:
         took = loop.time() - started
 
     assert report.status is HealthStatus.UP
-    assert "back pressure" in report.detail
-    assert took < 1.0
+    assert report.detail == BLOCKED
+    assert report.parts["blocked"] is True
+    assert took < 0.1, "a blocked broker is not probed at all"
 
 
 async def test_a_broker_that_does_not_answer_is_down_within_the_timeout() -> None:
@@ -209,14 +216,39 @@ def test_the_route_takes_the_path_from_the_settings() -> None:
         assert client.get("/readyz/mq").status_code == 200
 
 
-async def test_blocked_state_is_none_when_it_cannot_be_asked() -> None:
-    """``None`` is not ``False``: it means nobody looked.
+async def test_blocked_is_null_when_it_cannot_be_asked() -> None:
+    """``None`` is not ``False``: it means nobody could look.
 
-    A report that says ``blocked: null`` is more use in an incident than one that
-    says ``false`` because the accessor found nothing to read.
+    The connection answers all three, and this package's job is to pass the third
+    one through rather than round it down. A report saying ``blocked: null`` is
+    more use in an incident than one saying ``false`` because nothing looked, so
+    ``_parts`` deliberately has no ``blocked`` key of its own to overwrite it with.
     """
+    acemq, factory = build()
+    async with acemq.lifespan(FastAPI()):
+        factory.transport.mute()
+        report = await acemq.health()
 
-    class Bare:
-        transport = object()
+    assert report.parts["blocked"] is None
+    assert report.status is HealthStatus.UP, "unknown is not a reason to fail a probe"
 
-    assert blocked_state(Bare()) is None
+
+async def test_the_timeout_is_the_brokers_deadline_not_a_wrapper() -> None:
+    """The setting reaches the library's probe.
+
+    It used to be an ``asyncio.wait_for`` around a probe that had no deadline of
+    its own. The probe has had one since acemq-amqp 0.7.0, so the setting is handed
+    down instead: one deadline, owned by the thing that knows what to do when it
+    runs out.
+    """
+    acemq, factory = build(health={"timeout": 0.25})
+    async with acemq.lifespan(FastAPI()):
+        factory.transport.wedged.set()
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        report = await acemq.health()
+        took = loop.time() - started
+
+    assert report.status is HealthStatus.DOWN
+    assert "within 0.25s" in report.detail, "the library's own deadline, said in its words"
+    assert 0.25 <= took < 1.0

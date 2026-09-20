@@ -23,7 +23,6 @@ application that wants AceMQ to answer on a path of its own and nothing more.
 
 from __future__ import annotations
 
-import asyncio
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -35,17 +34,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from .integration import AceMQ
 
 __all__ = ["AceMQHealth", "health_router", "report_as_json"]
-
-#: Said rather than guessed. RabbitMQ sends a reason with ``connection.blocked``
-#: — "low on disk space", usually — and aio-pika's AMQP layer logs it and throws
-#: it away rather than keeping it on the connection, so there is nothing to read
-#: back. The state is available and the reason is not; saying so is better than
-#: inventing one.
-BLOCKED_DETAIL = (
-    "the broker is applying back pressure and has blocked this connection, usually "
-    "because it is low on disk or memory. Reported up on purpose: restarting into a "
-    "broker that is still blocked helps nobody, and this instance is still serving"
-)
 
 
 class AceMQHealth:
@@ -63,10 +51,19 @@ class AceMQHealth:
     into the same blocked broker, having thrown away whatever it was holding. It is
     the same call the Spring Boot starter makes, for the same reason.
 
-    The check is bounded by ``acemq.health.timeout``, which matters more here than
-    it looks: the library's own probe is a round trip with no deadline, and a
-    blocked broker is exactly the state in which a round trip does not come back.
-    A probe that hangs is a pod that never comes back.
+    The wording of that detail comes from the library and is the same sentence in
+    every AceMQ language, so one alert rule matches a blocked broker whatever the
+    service is written in. This adds ``parts`` and passes the rest through; it does
+    not paraphrase.
+
+    ``acemq.health.timeout`` is handed to the library's probe rather than wrapped
+    around it. The probe has had a deadline of its own since acemq-amqp 0.7.0, and
+    a second one outside it would be the cruder of the two: a blocked broker stops
+    reading its socket, and the library answers that case by re-reading the blocked
+    state and reporting *up* — an outer timeout firing first would turn that answer
+    into a spurious *down*, and would cancel a request the library deliberately
+    abandons instead, because a broker that is not reading cannot be relied on to
+    process a cancellation either.
     """
 
     def __init__(self, acemq: AceMQ, *, name: str = "acemq") -> None:
@@ -88,100 +85,38 @@ class AceMQHealth:
             )
 
         connection = acemq.connection
-        blocked = blocked_state(connection)
-        if blocked:
-            return HealthReport(
-                HealthStatus.UP,
-                BLOCKED_DETAIL,
-                parts=self._parts(blocked=True),
-            )
-
         timeout = acemq.settings.health.timeout.total_seconds()
         try:
-            report = await asyncio.wait_for(connection.health(), timeout)
-        except asyncio.TimeoutError:
-            # It may have become blocked while we were waiting, which is the
-            # ordinary way a round trip stops coming back.
-            if blocked_state(connection):
-                return HealthReport(
-                    HealthStatus.UP, BLOCKED_DETAIL, parts=self._parts(blocked=True)
-                )
-            return HealthReport(
-                HealthStatus.DOWN,
-                f"the broker did not answer within {timeout:g}s",
-                parts=self._parts(blocked=False),
-            )
+            report = await connection.health(timeout)
         except Exception as failure:
+            # A check must not raise; a probe wants an answer, not a 500.
             return HealthReport(
                 HealthStatus.DOWN,
                 f"the check itself failed: {failure}",
-                parts=self._parts(blocked=blocked),
+                parts={"blocked": connection.blocked, **self._parts()},
             )
 
         return HealthReport(
             report.status,
             report.detail,
             report.checked,
-            {**dict(report.parts), **self._parts(blocked=blocked)},
+            {**dict(report.parts), **self._parts()},
         )
 
-    def _parts(self, *, blocked: bool | None) -> dict[str, Any]:
+    def _parts(self) -> dict[str, Any]:
+        """What this package knows that the connection does not.
+
+        The connection counts its consumers; this names them, because a report
+        saying which consumer stalled is the one worth waking up to. ``blocked``
+        is not here: it comes from the connection, which is the only thing that
+        can answer it.
+        """
         acemq = self._acemq
         consumers = acemq.consumers
         return {
-            "blocked": blocked,
             "consumers": {name: consumer.in_flight for name, consumer in consumers.items()},
             "registered": [registration.name for registration in acemq.registrations],
         }
-
-
-#: aiormq keeps the state in an event under this name and clears it on
-#: ``connection.blocked``. It is name-mangled and private, and there is no
-#: supported accessor anywhere above it.
-_UNBLOCKED = "_Connection__connection_unblocked"
-
-#: The attributes worth following down to it. On aio-pika 10 the path is
-#: ``transport.connection.transport.connection`` — an AceMQ transport, a
-#: ``RobustConnection``, an ``UnderlayConnection`` and finally aiormq's own — and
-#: naming the links rather than the path means a layer appearing or disappearing
-#: does not break this.
-_LINKS = ("transport", "connection", "_connection")
-
-
-def blocked_state(connection: Any, *, depth: int = 5) -> bool | None:
-    """Whether the broker has blocked this connection, or ``None`` when unknown.
-
-    There is no supported way to ask. RabbitMQ sends ``connection.blocked`` and
-    ``connection.unblocked`` on channel zero; aiormq handles both by setting and
-    clearing an event it keeps to itself, and neither it nor aio-pika exposes that
-    event or the reason RabbitMQ sent with it. So this walks down the transports
-    looking for the event by its mangled name, and answers ``None`` when it is not
-    there — which is what a different transport, a future aio-pika, or a fake
-    connection in a test will all produce.
-
-    ``None`` is not ``False``: it means the question could not be asked, and a
-    report that says ``blocked: null`` is more use in an incident than one that
-    says ``false`` because it did not look. There is a test against a live broker
-    whose whole job is to fail when this starts returning ``None``.
-
-    A supported accessor belongs on the library's transport, beside the
-    ``isBlocked()`` and ``blockedReason()`` the Java library already has. Until
-    there is one, this is the honest version of the guess.
-    """
-    seen: set[int] = set()
-    frontier = [connection]
-    for _ in range(depth):
-        nxt: list[Any] = []
-        for node in frontier:
-            if node is None or id(node) in seen:
-                continue
-            seen.add(id(node))
-            unblocked = getattr(node, _UNBLOCKED, None)
-            if unblocked is not None and hasattr(unblocked, "is_set"):
-                return not bool(unblocked.is_set())
-            nxt.extend(getattr(node, link, None) for link in _LINKS)
-        frontier = nxt
-    return None
 
 
 def report_as_json(report: HealthReport) -> dict[str, Any]:

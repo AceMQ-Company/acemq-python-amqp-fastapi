@@ -316,8 +316,11 @@ class HealthSettings(BaseModel):
     path: str = "/health/acemq"
 
     #: How long the broker gets to answer before the check gives up and reports
-    #: down. The library's own probe has no deadline, and a probe that hangs is a
-    #: pod that never comes back, so this one is not optional.
+    #: down. Handed to the library's probe as its deadline rather than imposed
+    #: around it, so the report an operator reads is the one the connection
+    #: arrived at — a blocked broker that stops answering is still described as
+    #: blocked rather than as silence. Five seconds, against the library's own
+    #: default of three.
     timeout: Duration = timedelta(seconds=5)
 
     #: The status code a report that is not healthy answers with. 503 is what a

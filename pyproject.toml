@@ -24,8 +24,14 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-# The floor is the library's floor, because this package is only useful with the
-# library. aio-pika arrives with it: a FastAPI integration that cannot reach a
+# The floor is 0.7.0 because the health check calls ``Connection.blocked``, which
+# 0.6.0 does not have: a resolver allowed to pick the older release would install
+# something that imports cleanly and raises AttributeError the first time a
+# readiness probe fires. The ceiling stays one minor ahead, because a pre-1.0
+# library puts its breaking changes in minor bumps — 0.7.0 itself rewrote the
+# blocked health detail — and moving it should be a decision somebody made.
+#
+# aio-pika arrives with the library: a FastAPI integration that cannot reach a
 # broker without a second install is an integration that does not integrate.
 #
 # pydantic-settings is a dependency rather than an extra, and that is the one
@@ -36,7 +42,7 @@ classifiers = [
 # ends up being maintained forever. The starter this is modelled on does not write
 # its own binder either; it uses Spring's.
 dependencies = [
-  "acemq-amqp[rabbitmq]>=0.6.0,<0.7",
+  "acemq-amqp[rabbitmq]>=0.7.0,<0.8",
   "fastapi>=0.110",
   "pydantic-settings>=2.2",
 ]

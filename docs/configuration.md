@@ -117,7 +117,8 @@ this process, which is the slow drain nobody expects.
 | Setting | Default | |
 |---|---|---|
 | `path` | `/health/acemq` | The route `acemq.health_router()` builds |
-| `timeout` | `5s` | How long the broker gets to answer. Not optional: the library's own probe has no deadline |
+| `timeout` | `5s` | How long the broker gets to answer. Handed to the library's probe as its deadline, rather than imposed around it |
 | `unhealthy_status_code` | `503` | Answered only for *down*. Degraded and blocked answer 200 |
 
-See [health](health.md) for why blocked answers 200.
+See [health](health.md) for why blocked answers 200, and why the timeout goes down into
+the probe instead of wrapping it.

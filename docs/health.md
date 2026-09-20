@@ -74,29 +74,63 @@ was holding, and the broker is no better off for it.
 So: blocked reports **up, with the reason**, and `parts.blocked` is `true`. It is the
 same call the Spring Boot starter's `AceMqHealthIndicator` makes, for the same reason.
 
-The check is bounded by `acemq.health.timeout`. That matters more here than it looks —
-the library's own probe is a round trip with no deadline of its own, and a blocked
-broker is exactly the state in which a round trip does not come back. A probe that hangs
-is a pod that never comes back.
+```json
+{
+  "status": "up",
+  "healthy": true,
+  "detail": "the broker has blocked this connection; publishing is paused",
+  "parts": {"blocked": true, "consumers": {"orders-main": 0}, "in-flight": 0}
+}
+```
+
+### The detail is a contract, not a phrasing
+
+`the broker has blocked this connection; publishing is paused` is the same sentence
+every AceMQ library writes — Go's `blockedPrefix`, Ruby's `Health::BLOCKED`, and this
+one, word for word. One alert rule matches a blocked broker whatever language the
+service behind it is written in, which is the point of fixing the wording. Anything the
+broker itself said follows a colon.
+
+**Nothing is appended on RabbitMQ.** The broker does send a reason — "low on memory" —
+and aiormq logs it and keeps only a flag, so there is nothing to read back and
+`blocked_reason` is `null`. Reporting the block without the reason is the honest half;
+a reason invented here would read exactly like one the broker sent. Do not write a
+rule that expects one to appear.
+
+This package does not paraphrase that sentence: it comes from the connection and is
+passed through. Before acemq-amqp 0.7.0 this package wrote its own, longer wording,
+and [the changelog](https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/blob/main/CHANGELOG.md)
+says what an alert rule matching the old one has to change to.
 
 ### `blocked: null`
 
-`null` is not `false`. It means the question could not be asked.
+`null` is not `false`. It means the question could not be asked — a transport with no
+answer to give, or a connection between reconnections — and a report saying `null` is
+more use in an incident than one saying `false` because nothing looked.
 
-There is no supported way to ask it. RabbitMQ sends `connection.blocked` and
-`connection.unblocked` on channel zero; aiormq handles both by setting and clearing an
-event it keeps to itself, and neither it nor aio-pika exposes that event — or the reason
-string RabbitMQ sent with it. So `blocked_state` walks down the transports looking for
-that event by name, and answers `null` when it is not there.
+It is the connection's answer, not this package's. `Connection.blocked` is `true`,
+`false` or `null`, and the report carries it through untouched; nothing here has a
+`blocked` of its own that could overwrite it. There is an integration test whose only
+job is to fail if `blocked` reads `null` against a live broker, because that would mean
+the library had quietly lost the ability to tell a blocked broker from a wedged one.
 
-A report saying `blocked: null` is more use in an incident than one saying `false`
-because nothing looked. There is an integration test whose only job is to fail when
-this starts returning `null` against a live broker.
+Asking used to take a walk down `transport → connection → transport → connection`
+looking for a private aiormq event by its name-mangled attribute — there was no
+supported accessor anywhere above it. 0.7.0 added one, and the walk is gone.
 
-The reason string is genuinely unavailable — it is logged by aiormq and discarded — so
-the detail says what is happening without inventing why. A supported accessor belongs
-on the library's transport, beside the `isBlocked()` and `blockedReason()` the Java
-library already has; until there is one, this is the honest version of the guess.
+### The timeout
+
+`acemq.health.timeout` is handed to the library's probe as its deadline rather than
+wrapped around it. The probe has had a deadline of its own since 0.7.0, and a second one
+outside it would be the cruder of the two: a blocked broker that stops answering is
+recognised as blocked and reported *up*, and an outer timeout firing first would turn
+that into a spurious *down*. It would also cancel a request the library deliberately
+abandons — a broker that is not reading cannot be relied on to process a cancellation
+either.
+
+A blocked broker is not probed at all: the state is read first and the round trip
+skipped, so the route answers immediately instead of spending the whole deadline
+arriving at an answer it already had.
 
 ## Metrics and tracing
 

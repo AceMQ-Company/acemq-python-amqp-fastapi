@@ -48,7 +48,7 @@ The extra index is needed because AceMQ is not on PyPI before 1.0. It brings
 `acemq-amqp[rabbitmq]`, FastAPI and `pydantic-settings` with it — no second install.
 
 Python 3.10 or newer, which is the library's floor. The dependency on the library is
-`>=0.6.0,<0.7`: this repository's whole job is proving the *published* package works,
+`>=0.7.0,<0.8`: this repository's whole job is proving the *published* package works,
 so it installs it from the index like anybody else.
 
 ## What it wires up
@@ -89,9 +89,16 @@ orchestrator restarts into the same blocked broker, having thrown away whatever 
 holding. So the check reports **up**, with `parts.blocked` true and the reason in
 `detail`, and 503 is reserved for a broker that did not answer at all.
 
-The check is also bounded by `acemq.health.timeout`, which the library's own probe is
-not — and a blocked broker is exactly the state in which a round trip does not come
-back. A probe that hangs is a pod that never comes back.
+That detail is `the broker has blocked this connection; publishing is paused` — the
+same sentence every AceMQ library writes, so one alert rule matches a blocked broker
+whatever language the service is in. It comes from the connection and is passed through
+rather than paraphrased. On RabbitMQ nothing follows it: the broker does send a reason,
+aiormq logs it and keeps only a flag, so `blocked_reason` is `null` and inventing one
+would read exactly like a reason the broker sent.
+
+`acemq.health.timeout` is handed to the library's probe as its deadline rather than
+wrapped around it, so a blocked broker that stops answering is still described as
+blocked rather than as silence. A blocked broker is not probed at all.
 
 ### `publisher_confirms=false` is refused, not ignored
 

@@ -62,32 +62,16 @@ class FakeSubscription:
         self.released = True
 
 
-class FakeCore:
-    """The shape ``acemq_fastapi.health.blocked_state`` reaches through.
+class FakeTransport:
+    """A transport that keeps everything in memory.
 
-    aiormq keeps the blocked state in an event it name-mangles and does not
-    expose, so the accessor goes looking for it by that name. This is the same
-    shape, so the accessor is exercised here rather than only against a broker.
+    It implements :class:`acemq_amqp.transport.BlockedState` as well as
+    ``Transport``, so ``Connection.blocked`` has something to answer with and the
+    blocked path can be exercised without an alarm on a real broker.
     """
 
     def __init__(self) -> None:
-        self._Connection__connection_unblocked = asyncio.Event()
-        self._Connection__connection_unblocked.set()
-
-
-class FakeAioPika:
-    """What aio-pika puts on the transport: a connection wrapping aiormq's."""
-
-    def __init__(self) -> None:
-        self.connection = FakeCore()
-
-
-class FakeTransport:
-    """A transport that keeps everything in memory."""
-
-    def __init__(self) -> None:
-        #: The same two-deep shape aio-pika has, for the blocked-state accessor.
-        self.connection = FakeAioPika()
+        self._blocked: bool | None = False
         self.queues: dict[str, QueueSpec] = {}
         self.exchanges: dict[str, ExchangeSpec] = {}
         self.bindings: list[tuple[str, str, str]] = []
@@ -101,10 +85,31 @@ class FakeTransport:
 
     def block(self) -> None:
         """The broker applying back pressure."""
-        self.connection.connection._Connection__connection_unblocked.clear()
+        self._blocked = True
 
     def unblock(self) -> None:
-        self.connection.connection._Connection__connection_unblocked.set()
+        self._blocked = False
+
+    def mute(self) -> None:
+        """Stops it being able to answer the question at all.
+
+        The third state :attr:`acemq_amqp.Connection.blocked` has, and the one a
+        report must not round down to ``False``: a transport between
+        reconnections, or one whose client keeps the state to itself.
+        """
+        self._blocked = None
+
+    # --- BlockedState ------------------------------------------------------
+
+    @property
+    def blocked(self) -> bool | None:
+        return self._blocked
+
+    @property
+    def blocked_reason(self) -> str | None:
+        # ``None`` even when blocked, because that is what the RabbitMQ
+        # transport answers: aiormq logs RabbitMQ's reason and keeps a flag.
+        return None
 
     # --- Transport ---------------------------------------------------------
 

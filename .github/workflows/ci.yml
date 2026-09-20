@@ -78,7 +78,20 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]" --extra-index-url https://acemq.org/pypi/simple/
 
+      - name: Find the broker container
+        # The blocked-connection test has to raise a real memory alarm, which
+        # takes rabbitmqctl: nothing on the client side can make a broker block a
+        # connection. A service container's name is generated rather than chosen,
+        # so it is looked up by image and handed over as the command that fronts
+        # rabbitmqctl. Without this the test skips, and a test that never sees a
+        # real block is how this class of defect survived in five libraries.
+        run: |
+          id="$(docker ps -q --filter ancestor=rabbitmq:4-alpine | head -1)"
+          echo "ACEMQ_TEST_BROKER_CTL=docker exec $id rabbitmqctl" >> "$GITHUB_ENV"
+
       - name: Test against the broker
         env:
           ACEMQ_TEST_BROKER: amqp://guest:guest@localhost:5672/
-        run: pytest -m integration -q
+        # -rs so a skipped integration test is visible in the log rather than a
+        # dot that looks like a pass.
+        run: pytest -m integration -q -rs

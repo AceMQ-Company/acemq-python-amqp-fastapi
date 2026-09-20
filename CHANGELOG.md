@@ -14,6 +14,102 @@ chose.
 
 ## [Unreleased]
 
+### Changed
+
+- **The blocked health detail is a different sentence, and an alert rule matching the
+  old one stops matching with nothing erroring.** That is the headline because it is the
+  only change here that can break something quietly. It was:
+
+  > the broker is applying back pressure and has blocked this connection, usually
+  > because it is low on disk or memory. Reported up on purpose: restarting into a
+  > broker that is still blocked helps nobody, and this instance is still serving
+
+  and it is now:
+
+  > the broker has blocked this connection; publishing is paused
+
+  Word for word what Go, Ruby and the library itself write, so one alert rule reads a
+  blocked broker whatever language the service behind it is in. This package no longer
+  has a wording of its own: the sentence comes from `acemq-amqp` and is passed through.
+
+  **What an operator has to change.** A rule matching `detail` on `back pressure`, on
+  `usually because it is low on disk or memory`, or on any other phrase from the old
+  sentence, matches nothing now and reports nothing — a blocked broker looks like a
+  quiet one. Replace it with `parts.blocked == true`, which is the better selector and
+  did not change: same key, same three states, same place in the payload. A rule that
+  must read the text should match the *prefix* `the broker has blocked this connection`
+  rather than the whole string, because a broker reason is appended after a colon where
+  a client keeps one, and because a stalled consumer during a block puts its own clause
+  in front of it.
+
+  Everything else an operator watches is unchanged. Blocked still answers **200** and
+  still reports **up**, `parts.blocked` is still `true`/`false`/`null`, and 503 is still
+  reserved for a broker that did not answer at all. The argument that used to be inside
+  the string — why blocked is reported up rather than down — is in `docs/health.md`,
+  where it does not have to be read at three in the morning.
+
+- **`acemq-amqp` is now `>=0.7.0,<0.8`**, up from `>=0.6.0,<0.7`, which excluded it.
+  The floor is 0.7.0 because the health check calls `Connection.blocked`, which 0.6.0
+  does not have: a resolver allowed to pick the older release would install something
+  that imports cleanly and raises `AttributeError` the first time a readiness probe
+  fires. The ceiling stays one minor ahead, because a pre-1.0 library puts its breaking
+  changes in minor bumps — 0.7.0 itself rewrote the sentence above — and moving it
+  should go on being a decision somebody made.
+
+- **`acemq.health.timeout` is handed to the library's probe instead of wrapped around
+  it.** The check used to be an `asyncio.wait_for` around `Connection.health()`, which
+  had no deadline of its own; 0.7.0 gave it one, and the wrapper was kept only long
+  enough to decide against it. Two deadlines are worse than one: the outer one is the
+  cruder, and when a blocked broker stops answering the library recognises it and
+  reports *up* where the wrapper firing first would have reported a spurious *down*. It
+  would also cancel a request the library deliberately abandons — a broker that is not
+  reading cannot be relied on to process a cancellation either. The setting's meaning,
+  name and five-second default are unchanged; it is now the probe's deadline rather than
+  a limit on the whole check.
+
+- **A blocked connection whose consumer has also stopped reading now reports
+  degraded**, where it used to report up. The block was checked first and returned
+  immediately, so a stalled consumer went unmentioned for as long as the alarm lasted.
+  The connection reports both, with the consumer's failure first, because that one is
+  this instance's own and outlives the alarm. Still 200 either way.
+
+### Removed
+
+- **`acemq_fastapi.health.blocked_state`** and the private-attribute walk behind it —
+  about 60 lines. It followed `transport → connection → transport → connection` looking
+  for aiormq's `_Connection__connection_unblocked` by its name-mangled attribute,
+  because until 0.7.0 nothing above it exposed the state and a health check that cannot
+  tell a blocked broker from a wedged one is a health check that gets pods restarted
+  into an alarm. `Connection.blocked` replaces it exactly, including the three-state
+  answer: `None` still means the question could not be asked and is still not folded
+  into `false`.
+
+  It was never exported from `acemq_fastapi`, so nothing that imported the package by
+  its public name is affected; anything reaching into `acemq_fastapi.health` for it
+  should read `acemq.connection.blocked` instead.
+
+- **`acemq_fastapi.health.BLOCKED_DETAIL`.** The library's constant of the same name is
+  now the one sentence, for the reason at the top of this entry.
+
+### Notes
+
+- **`blocked_reason` is still `None` on RabbitMQ, confirmed against a real alarm.** The
+  broker does send one — aiormq logs `was blocked by: 'low on memory'` — and keeps only
+  a flag, so there is nothing to read back. 0.7.0 documents that rather than pretending
+  otherwise. Nothing here should be written expecting a reason to appear, and nothing
+  here invents one, because an invented reason would read exactly like one the broker
+  sent.
+
+- **The blocked path is tested against a broker that is genuinely blocked.** A test that
+  only ever sees a fake block proves nothing about this: RabbitMQ sends
+  `connection.blocked` only to a connection that publishes while an alarm is on, and
+  what makes a probe hang is the broker then stopping reading the socket. So the
+  integration suite drops `vm_memory_high_watermark` to `0.0001`, publishes to provoke
+  the block, asserts the route answers 200 with the sentence above in under a second,
+  and restores the watermark before the connection is closed. It skips, rather than
+  pretends, where `ACEMQ_TEST_BROKER_CTL` is not set — the same lever the library's own
+  suite uses.
+
 ## [0.1.0] - 2026-09-18
 
 First release. It wires `acemq-amqp` 0.6.0 into a FastAPI application and does nothing

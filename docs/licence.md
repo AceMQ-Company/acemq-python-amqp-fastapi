@@ -24,7 +24,7 @@ release train as much as AceMQ's. A FastAPI release that moves the lifespan cont
 a release this package has to answer, and it should not have to wait for the library to
 cut a version to do it.
 
-The dependency is declared as `acemq-amqp>=0.6.0,<0.7`, so a library release that
+The dependency is declared as `acemq-amqp>=0.7.0,<0.8`, so a library release that
 changes the API this wires up cannot arrive silently.
 
 ## Trademarks
