@@ -1,0 +1,408 @@
+# Verify a tag, build the distributions, and add them to the AceMQ package index.
+#
+# Triggered by a tag:  git tag -a v0.1.0 -m "..." && git push origin v0.1.0
+#
+# # Where this publishes
+#
+# The wheel and the sdist go to AceMQ-Company/pypi, a static PEP 503 index served
+# at https://acemq.org/pypi/, alongside the Maven repository, the NuGet feed and
+# the gem feed that already work this way. They do not go to PyPI, and nothing
+# here uses Trusted Publishing or an upload token: publishing is a commit to a
+# repository of files, pushed with a deploy key.
+#
+# That is deliberate and it is about reversibility. A project name on PyPI is
+# permanent and a released version can never be re-uploaded — deleting a release
+# does not free its filename, and yanking hides it from resolution while leaving
+# every lockfile that already names it working. Publishing here first means a
+# release can be corrected by deleting a file and re-indexing, which is the
+# property worth having while this package is at 0.1.x. Moving to PyPI later
+# changes nothing for consumers except the index URL.
+#
+# # Publishing credentials
+#
+# PYPI_REPO_DEPLOY_KEY: an SSH deploy key with write access to
+# AceMQ-Company/pypi and to nothing else in the organisation. A deploy key
+# rather than a token because a token carries its owner's reach across every
+# repository they can see, and this job needs exactly one.
+#
+# It is checked for before the index is touched rather than being allowed to
+# fail at the push, because an absent secret interpolates to an empty string and
+# `actions/checkout` quietly falls back to the default token when handed one. On
+# a public index that clones fine and fails much later, at a push, with an error
+# about permissions rather than about a missing secret.
+#
+# # No notification
+#
+# This workflow tells nobody. A release that is not on a public index is not
+# news to announce, and the run itself is the record.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # For re-running a release whose publish step failed — a missing secret, an
+  # index that was not serving yet — without moving a tag. A tag is the name of a
+  # release and moving one makes two different commits answer to it.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, without the leading v (e.g. 0.1.1)'
+        required: true
+
+# Least privilege for every job that does not ask for more. Nothing here needs
+# more: the one credential that can publish is a deploy key named in the publish
+# job, not a permission inherited from an organisation setting somebody can
+# change later.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The floor requires-python promises, not the newest. Releasing
+          # something that only builds on a newer interpreter would break that
+          # promise for exactly the people who read it.
+          python-version: '3.10'
+
+      - name: Work out the version
+        id: version
+        env:
+          # Through the environment rather than interpolated into the script. A
+          # tag name and a dispatch input are both caller-controlled text, and
+          # inlining either one lets whoever writes it run shell here.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${TAG_NAME#v}"
+          fi
+          # An allow-list, not a deny-list. The version reaches a file name, a
+          # commit message and a package version, so anything that is not
+          # plainly a version number is refused rather than escaped.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([ab]|rc)?[0-9]*$'; then
+            echo "::error::not a release version: '$VERSION'"
+            exit 1
+          fi
+          # The line stays on 0.1.x until that is deliberately changed. Without
+          # this a mistyped tag ships a 0.2.0 or a 1.0.0 that nobody asked for,
+          # and a published version is not really withdrawable: deleting it from
+          # the index does not reach a lockfile that already names it, and it
+          # would claim a version number this package has not earned. Lift this
+          # when the line moves on — RELEASING.md says where.
+          case "$VERSION" in
+            0.1.*) ;;
+            *)
+              echo "::error::this package releases 0.1.x only; '$VERSION' needs the guard in release.yml lifted first"
+              exit 1
+              ;;
+          esac
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "releasing $VERSION"
+
+      - name: Check the package agrees with the tag
+        # Two places in the tree say what version this is, and a release that
+        # disagrees with either of them ships a wheel whose metadata names
+        # something else -- which a consumer only finds out from `pip show`
+        # telling them they have a version nobody released.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          declared=$(grep -E '^version = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          if [ "$declared" != "$VERSION" ]; then
+            echo "::error::pyproject.toml says $declared; the tag is $VERSION"
+            exit 1
+          fi
+          reported=$(grep -E '^__version__ = ' src/acemq_fastapi/__init__.py | cut -d'"' -f2)
+          if [ "$reported" != "$VERSION" ]; then
+            echo "::error::acemq_fastapi.__version__ is \"$reported\"; the tag is $VERSION"
+            exit 1
+          fi
+          echo "pyproject.toml and __version__ both say $VERSION"
+
+      - name: Install
+        # From the index, like a consumer, never from a path. This repository's
+        # whole point is proving the published acemq-amqp works behind FastAPI,
+        # and a sibling checkout on the runner would prove something else.
+        run: |
+          pip install -e ".[dev]" build twine \
+            --extra-index-url https://acemq.org/pypi/simple/
+
+      - name: Test
+        # Not the integration tests: they need a broker, and they have a job.
+        run: pytest -m "not integration" -q
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Types
+        run: mypy
+
+      - name: Build the sdist and the wheel
+        # Both. A wheel alone leaves anyone on a Python it was not built for with
+        # nothing to fall back on, and an sdist alone makes every install a
+        # build.
+        run: python -m build --sdist --wheel --outdir "$RUNNER_TEMP/dist"
+
+      - name: Check what will be published
+        # twine's own metadata check, run before anything is published rather
+        # than discovering afterwards that the README will not render.
+        run: twine check --strict "$RUNNER_TEMP"/dist/*
+
+      - name: Check the built wheel carries the version and the pin
+        # The artifact is what people install, so the artifact is what is
+        # checked -- not the tree it was built from. Two facts matter and only
+        # one of them is the version: this package's contract with the library is
+        # a floor and a ceiling, and a wheel whose metadata lost them resolves
+        # against an acemq-amqp that does not have what the health check calls.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python - <<'PY'
+          import os, sys, zipfile
+
+          version = os.environ["VERSION"]
+          wheel = os.path.join(os.environ["RUNNER_TEMP"], "dist",
+                               f"acemq_amqp_fastapi-{version}-py3-none-any.whl")
+          if not os.path.exists(wheel):
+              sys.exit(f"::error::no wheel built for {version}: {wheel} is missing")
+
+          with zipfile.ZipFile(wheel) as z:
+              name = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))
+              metadata = z.read(name).decode()
+
+          fields = {}
+          requires = []
+          for line in metadata.splitlines():
+              if not line:
+                  break
+              key, _, value = line.partition(": ")
+              if key == "Requires-Dist":
+                  requires.append(value)
+              else:
+                  fields[key] = value
+
+          problems = []
+          if fields.get("Version") != version:
+              problems.append(f"the wheel says Version: {fields.get('Version')}")
+          if fields.get("Name") != "acemq-amqp-fastapi":
+              problems.append(f"the wheel says Name: {fields.get('Name')}")
+          pin = next((r for r in requires if r.startswith("acemq-amqp")), None)
+          if pin is None:
+              problems.append("the wheel does not depend on acemq-amqp at all")
+          elif ">=0.7.0" not in pin or "<0.8" not in pin:
+              problems.append(f"the acemq-amqp pin is '{pin}', not >=0.7.0,<0.8")
+
+          if problems:
+              print("::error::the built wheel is not what this release means to publish:")
+              for p in problems:
+                  print("  " + p)
+              sys.exit(1)
+          print(f"the wheel is acemq-amqp-fastapi {version} requiring {pin}")
+          PY
+
+      - name: Check the sdist really builds the package
+        # An sdist missing a file installs cleanly and fails on import, and
+        # hatchling's file selection is configuration rather than a guarantee.
+        # Installed from the sdist alone, with its dependencies resolved from the
+        # index, into an interpreter that has never seen this checkout -- which
+        # is also the first proof that the acemq-amqp this package pins is
+        # actually resolvable from where consumers are told to look.
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          python -m venv "$RUNNER_TEMP/sdist-check"
+          "$RUNNER_TEMP/sdist-check/bin/pip" install --quiet \
+            --extra-index-url https://acemq.org/pypi/simple/ \
+            "$RUNNER_TEMP/dist/acemq_amqp_fastapi-$VERSION.tar.gz"
+          "$RUNNER_TEMP/sdist-check/bin/python" -c "
+          import acemq_amqp, acemq_fastapi
+          assert acemq_fastapi.__version__ == '$VERSION', acemq_fastapi.__version__
+          assert acemq_amqp.__version__.startswith('0.7.'), acemq_amqp.__version__
+          # Built without an application and connected to nothing, which is the
+          # promise the lifespan makes: importing a module that declares
+          # consumers must not reach a broker.
+          acemq_fastapi.AceMQ()
+          print('the sdist installs and imports, on acemq-amqp', acemq_amqp.__version__)
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: ${{ runner.temp }}/dist
+          if-no-files-found: error
+
+  integration:
+    runs-on: ubuntu-latest
+
+    # A release runs the integration suite. It is the one moment where waiting
+    # for the slow tests is obviously worth it: this is the artifact people
+    # depend on.
+    services:
+      broker:
+        image: rabbitmq:4-alpine
+        ports: ['5672:5672']
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]" --extra-index-url https://acemq.org/pypi/simple/
+
+      - name: Find the broker container
+        # The blocked-connection test has to raise a real memory alarm, which
+        # takes rabbitmqctl: nothing on the client side can make a broker block a
+        # connection. A service container's name is generated rather than chosen,
+        # so it is looked up by image and handed over as the command that fronts
+        # rabbitmqctl. Without this the test skips -- and a release should not be
+        # the run where it quietly does.
+        run: |
+          id="$(docker ps -q --filter ancestor=rabbitmq:4-alpine | head -1)"
+          echo "ACEMQ_TEST_BROKER_CTL=docker exec $id rabbitmqctl" >> "$GITHUB_ENV"
+
+      - name: Test against the broker
+        env:
+          ACEMQ_TEST_BROKER: amqp://guest:guest@localhost:5672/
+        run: |
+          set -o pipefail
+          pytest -m integration -q -rs 2>&1 | tee "$RUNNER_TEMP/broker-tests.log"
+
+      - name: Check the broker tests really ran
+        # A suite that skipped everything reports the same green as one that
+        # passed everything, and the one test this package most needs to have run
+        # is the one that skips when ACEMQ_TEST_BROKER_CTL is unset.
+        #
+        # The count is the whole suite rather than a margin below it, because
+        # unlike the library nothing here skips by design -- there are no TLS
+        # tests to stand down without a TLS broker. Adding or removing an
+        # integration test means editing this number, which is the point: it
+        # should be a decision, not a quiet drift.
+        run: |
+          log="$RUNNER_TEMP/broker-tests.log"
+          # pytest -q opens its summary line with the count, at column one, so
+          # the number is read out of the line rather than from around it.
+          passed=$(grep -oE '[0-9]+ passed' "$log" | head -1 | grep -oE '[0-9]+')
+          passed=${passed:-0}
+          if [ "$passed" -lt 9 ]; then
+            echo "::error::only $passed broker tests passed; expected all 9"
+            exit 1
+          fi
+          echo "$passed broker tests passed"
+
+  publish:
+    needs: [verify, integration]
+    # Tags only. A manual dispatch runs every check against a branch and stops
+    # short of publishing, which is what makes this workflow safe to try out.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-feed
+      url: https://acemq.org/pypi/
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+
+      - name: Check the deploy key is there
+        # An absent secret is an empty string, and an empty ssh-key sends
+        # actions/checkout down its token path instead of failing. This says
+        # which secret is missing, here, before anything has been attempted.
+        env:
+          DEPLOY_KEY: ${{ secrets.PYPI_REPO_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::PYPI_REPO_DEPLOY_KEY is not set on this repository; it must be an SSH deploy key with write access to AceMQ-Company/pypi"
+            exit 1
+          fi
+          echo "PYPI_REPO_DEPLOY_KEY is present"
+
+      - name: Check out the package index
+        uses: actions/checkout@v4
+        with:
+          repository: AceMQ-Company/pypi
+          # A deploy key rather than a token: write access to that repository
+          # alone, and to nothing else in the organisation.
+          ssh-key: ${{ secrets.PYPI_REPO_DEPLOY_KEY }}
+          path: package-index
+
+      - name: Add the distributions to it
+        # Cloned first, then added to, so the index is regenerated over
+        # everything already published -- acemq-amqp's own releases included.
+        # Building it from this release alone would leave every other project on
+        # disk and invisible to pip.
+        working-directory: package-index
+        run: ./scripts/publish.sh "$GITHUB_WORKSPACE"/dist/*
+
+      # `published` is the line between "nothing happened" and "something is out
+      # there". Everything before this leaves the index untouched; everything
+      # after operates on a version pip can already resolve.
+      - name: Commit and push
+        working-directory: package-index
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          git config user.name "acemq-release"
+          git config user.email "noreply@acemq.org"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing to publish; $VERSION may already be in the index"
+            exit 0
+          fi
+          git add -A
+          git commit -m "Publish acemq-amqp-fastapi $VERSION"
+          git push origin HEAD
+
+      - name: Install it back out of the index
+        # The index is only real if pip can resolve from it. GitHub Pages takes a
+        # moment to serve a new commit, so this retries rather than racing the
+        # deploy.
+        #
+        # With its dependencies, not --no-deps: this package is nothing on its
+        # own, and the install a consumer runs is the one worth proving. That
+        # needs both indexes -- acemq-amqp from ours, fastapi from PyPI -- with
+        # ours first, so the package being verified can only have come from
+        # where this job just put it.
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          python -m venv "$RUNNER_TEMP/verify"
+          for attempt in $(seq 1 20); do
+            if "$RUNNER_TEMP/verify/bin/pip" install --quiet \
+                 --index-url https://acemq.org/pypi/simple/ \
+                 --extra-index-url https://pypi.org/simple/ \
+                 "acemq-amqp-fastapi==$VERSION" 2>/dev/null; then
+              "$RUNNER_TEMP/verify/bin/python" -c "
+          import sys
+          import acemq_amqp, acemq_fastapi
+          from acemq_fastapi import AceMQ
+          if acemq_fastapi.__version__ != '$VERSION':
+              sys.exit('the index served ' + acemq_fastapi.__version__)
+          AceMQ()
+          print('installed acemq-amqp-fastapi $VERSION from the index, on acemq-amqp', acemq_amqp.__version__)
+          "
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::the index did not serve acemq-amqp-fastapi $VERSION within five minutes"
+          exit 1

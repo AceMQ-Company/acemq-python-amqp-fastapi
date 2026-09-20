@@ -160,7 +160,7 @@ application for the case where the handlers deserve their own process.
 
 ## Documentation
 
-Eight pages, published at
+Ten pages, published at
 **<https://acemq.org/acemq-python-amqp-fastapi/>**. They read as markdown in
 [docs/](docs/) too, and render with `.github/scripts/build-docs-site.sh`.
 
@@ -192,6 +192,37 @@ ruff check . && mypy          # what CI runs
 docker run -d --rm --name acemq-test -p 5722:5672 rabbitmq:4-alpine
 pytest -m integration
 ```
+
+### Releasing
+
+```bash
+git tag -a v0.1.0 -m "AceMQ for FastAPI 0.1.0" && git push origin v0.1.0
+```
+
+`release.yml` runs the whole suite including the integration tests, builds the sdist and
+the wheel, reads the version and the `acemq-amqp` pin back out of the built wheel,
+checks the sdist alone installs and imports, adds both files to the AceMQ package index,
+then installs the published version from that index into an empty interpreter to confirm
+consumers get what was built.
+
+It publishes to **<https://acemq.org/pypi/>**, a static PEP 503 index served from
+`AceMQ-Company/pypi` — not to PyPI. There is no upload token and no Trusted Publishing:
+the job clones that repository with an SSH deploy key held in `PYPI_REPO_DEPLOY_KEY`,
+adds the distributions, and pushes. A file on that index can be deleted and the index
+regenerated, which is the property worth having at 0.1.x; a version on PyPI is
+permanent.
+
+Three guards. The version must be a version — an allow-list, because it reaches a file
+name and a package version. It must be `0.1.x`, so a mistyped tag cannot claim a version
+this package has not earned. And the tag is what names the release, so nothing publishes
+unless `pyproject.toml` and `acemq_fastapi.__version__` both already say the same thing,
+which means the version in the tree is bumped before the tag is cut rather than after.
+
+Before the first tag this repository needs `PYPI_REPO_DEPLOY_KEY` — the private half of
+a deploy key with write access to `AceMQ-Company/pypi` — and a `pypi-feed` environment.
+Until then a tag reaches the publish job and fails there, naming the missing secret,
+which is the right way round: nothing is published by accident and the failure says what
+is missing. [RELEASING.md](RELEASING.md) has the whole procedure.
 
 ## Licence
 
