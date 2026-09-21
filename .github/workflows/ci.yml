@@ -10,6 +10,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # acemq-amqp can release without a commit landing here, and a range that has
+  # stopped admitting the current release looks exactly like one that still does
+  # until somebody checks. A timer is the only thing that looks.
+  schedule:
+    - cron: '11 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -95,3 +100,102 @@ jobs:
         # -rs so a skipped integration test is visible in the log rather than a
         # dot that looks like a pass.
         run: pytest -m integration -q -rs
+
+  tracks-the-release:
+    name: the range still admits the newest release
+    runs-on: ubuntu-latest
+    # A job of its own rather than a step in `test`, deliberately -- the same
+    # argument the examples repositories make. A dependency that has fallen out of
+    # step and a broken package are different findings and both are worth having:
+    # everything above still installs, still tests and still type-checks whatever
+    # this job concludes, so a red X here reads as "the declared dependency has
+    # fallen behind the library", never as "we have no idea whether any of this
+    # works".
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the version parser
+        # packaging is what pip itself uses to decide whether a version satisfies
+        # a specifier. Asking it is the difference between an answer that agrees
+        # with pip and a shell string comparison guessing at whether "<0.8" covers
+        # "0.8.0".
+        run: pip install --quiet packaging
+
+      - name: The declared range admits the newest release
+        # A range is a different question from an exact pin, and forcing the two
+        # into the same check would make this job wrong.
+        #
+        # An exact pin names one version, so it goes stale the instant a newer one
+        # is released and equality is the whole question. This package does not
+        # pin: it declares `acemq-amqp[rabbitmq]>=X,<Y`, which names a *set*, and a
+        # set does not go stale because a release appeared. That is what the range
+        # is for. Demanding that `<0.8` be rewritten on every 0.7.z release would
+        # just be an exact pin with extra punctuation, and it would be a lie to
+        # every application that installs this package, because the range is also
+        # the constraint pip hands them.
+        #
+        # What a range *can* do is stop admitting the current release. `<0.8` is
+        # correct through all of 0.7.z and becomes a wall the morning 0.8.0 ships.
+        # Nothing here breaks at that moment, which is the danger: pip keeps
+        # resolving 0.7.z, this workflow keeps passing, and it keeps proving
+        # something about a version the feed no longer serves as current -- while
+        # holding every downstream application back to it as well. So the
+        # assertion is membership rather than equality: does the declared
+        # specifier admit the newest release?
+        #
+        # Membership is also what makes the jobs above worth reading. pip installs
+        # the newest version a range admits, so once the newest release is inside
+        # the range, the test and integration jobs really are exercising it.
+        #
+        # Both sides are parsed rather than pattern-matched. The dependency is
+        # found by canonical name in pyproject.toml, so reformatting the file or
+        # changing the extras cannot make this check quietly stop finding it, and
+        # the tags come from the library repository rather than the index because
+        # git ls-remote needs no token on a scheduled run.
+        run: |
+          newest=$(git ls-remote --tags https://github.com/AceMQ-Company/acemq-python-amqp \
+                     | grep -v '\^{}' | sed 's#.*refs/tags/##' \
+                     | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' \
+                     | sort -V | tail -1)
+
+          # An empty answer means the listing failed or the tag naming changed,
+          # and comparing against nothing would pass silently forever.
+          if [ -z "$newest" ]; then
+            echo "::error::no release tags found on acemq-python-amqp, so the range could not be checked"
+            exit 1
+          fi
+
+          python3 - "$newest" <<'PY'
+          import sys, tomllib
+          from packaging.requirements import Requirement
+          from packaging.utils import canonicalize_name
+          from packaging.version import Version
+
+          newest = Version(sys.argv[1])
+
+          with open("pyproject.toml", "rb") as f:
+              declared = tomllib.load(f)["project"]["dependencies"]
+
+          found = [r for r in map(Requirement, declared)
+                   if canonicalize_name(r.name) == "acemq-amqp"]
+          if not found:
+              print("::error::pyproject.toml declares no dependency on acemq-amqp, "
+                    "so the range could not be checked")
+              sys.exit(1)
+
+          requirement = found[0]
+          if newest not in requirement.specifier:
+              print(f"::error::pyproject.toml declares '{requirement}' but the newest "
+                    f"acemq-amqp release is {newest}, which that range does not admit. "
+                    f"Edit the acemq-amqp entry in [project] dependencies in "
+                    f"pyproject.toml so its upper bound covers {newest} -- until then "
+                    f"pip resolves an older release here and in every application that "
+                    f"installs this package.")
+              sys.exit(1)
+
+          print(f"declared '{requirement}', which admits {newest}, the newest release")
+          PY
