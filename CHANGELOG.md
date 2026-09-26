@@ -14,6 +14,8 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-26
+
 ### Added
 
 Seven documentation pages, which take the site from ten to seventeen. The gap they close
