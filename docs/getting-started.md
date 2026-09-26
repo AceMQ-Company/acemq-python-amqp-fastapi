@@ -10,7 +10,34 @@ The extra index is needed because AceMQ is not on PyPI before 1.0. It brings
 `acemq-amqp` with the RabbitMQ transport, FastAPI and `pydantic-settings` with it —
 there is no second install to remember.
 
+`--extra-index-url` rather than `--index-url`, because FastAPI, pydantic and `aio_pika`
+come from PyPI and only AceMQ comes from the AceMQ feed. Using `--index-url` replaces PyPI
+rather than adding to it, and the install then fails on the first ordinary dependency.
+
 Python 3.10 or newer, which is the library's floor.
+
+In a `requirements.txt`, the index goes in the file so nobody has to remember the flag:
+
+```
+--extra-index-url https://acemq.org/pypi/simple/
+acemq-amqp-fastapi==0.1.0
+```
+
+Or, for a project with a `pyproject.toml`:
+
+```toml
+[project]
+dependencies = ["acemq-amqp-fastapi>=0.1.0,<0.2"]
+```
+
+with the index configured where the install happens — `PIP_EXTRA_INDEX_URL`, a
+`pip.conf`, or `[[tool.uv.index]]`. A `pyproject.toml` cannot carry an index URL itself;
+that is pip's configuration, not the project's metadata.
+
+This release wires `acemq-amqp` **0.7.1**, the current library release, through a declared
+range of `>=0.7.0,<0.8` — see [the version table](index.md#versions). Installing
+`acemq-amqp-fastapi` brings whichever release inside that range is newest, so there is
+nothing to pin yourself.
 
 ## A broker
 
@@ -96,7 +123,9 @@ Every setting, and what each one does, is in [configuration](configuration.md).
 
 ## Then
 
+- [Patterns from FastAPI](patterns.md) — every pattern the library carries, and where each one goes
 - [The lifespan](lifespan.md) — including keeping the one your application already has
 - [Consumers](consumers.md) — the decorator, concurrency, retries, scaling
+- [Security](security.md) — TLS, credentials, development certificates, encrypted payloads
 - [Shutdown](shutdown.md) — what a drain finishes, measured
 - [Health](health.md) — and why a blocked broker reports up

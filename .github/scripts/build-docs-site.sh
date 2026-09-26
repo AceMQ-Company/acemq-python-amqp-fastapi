@@ -229,10 +229,23 @@ NAV='<nav class="top">
   </div>
 
   <div class="group">
+    <button type="button" aria-haspopup="true">Patterns</button>
+    <div class="menu">
+      <a href="patterns.html">Patterns from FastAPI</a>
+      <a href="request-reply.html">Request-reply</a>
+      <a href="streams.html">Streams</a>
+      <a href="serialization.html">Serialization</a>
+    </div>
+  </div>
+
+  <div class="group">
     <button type="button" aria-haspopup="true">Operations</button>
     <div class="menu">
       <a href="configuration.html">Configuration</a>
+      <a href="security.html">Security</a>
+      <a href="topology.html">Topology</a>
       <a href="health.html">Health</a>
+      <a href="observability.html">Observability</a>
       <a href="shutdown.html">Shutdown</a>
       <a href="licence.html">Licence</a>
     </div>

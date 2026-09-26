@@ -46,8 +46,35 @@ async def place(orders: Orders) -> dict[str, str]:
 | **Start here** | [Getting started](getting-started.md) |
 | **Reference** | [Configuration](configuration.md) — every `acemq.*` setting |
 | **Usage** | [The lifespan](lifespan.md) · [Consumers](consumers.md) · [Publishing from a route](publishing.md) · [Testing](testing.md) |
-| **Operations** | [Health](health.md) · [Shutdown](shutdown.md) |
+| **Patterns** | [Patterns from FastAPI](patterns.md) · [Request-reply](request-reply.md) · [Streams](streams.md) · [Serialization](serialization.md) |
+| **Operations** | [Security](security.md) · [Topology](topology.md) · [Health](health.md) · [Observability](observability.md) · [Shutdown](shutdown.md) |
 | **Support** | [Enterprise support](https://acemq.com) |
+
+[Patterns from FastAPI](patterns.md) is the page to read second. It lists every pattern the
+library carries and says, for each one, whether there is an `acemq.*` setting for it or
+whether it is four lines in a lifespan — because for most of them it is the latter, and
+knowing which is which saves looking for a setting that was never going to exist.
+
+## Versions
+
+This release wires **`acemq-amqp` 0.7.1**, which is the current library release. The
+declared dependency is a range, `acemq-amqp[rabbitmq]>=0.7.0,<0.8`, so pip resolves the
+newest release inside it rather than a version pinned here going stale — and the range is
+also the constraint your application inherits.
+
+| | |
+|---|---|
+| `acemq-amqp-fastapi` | 0.1.0 |
+| `acemq-amqp` | `>=0.7.0,<0.8`, tested against 0.7.1 |
+| Python | 3.10, 3.11, 3.12, 3.13 |
+| FastAPI | `>=0.110` |
+| `pydantic-settings` | `>=2.2` |
+
+The floor is 0.7.0 because the health check calls `Connection.blocked`, which 0.6.0 does
+not have. The ceiling is one minor ahead, because a pre-1.0 library puts its breaking
+changes in minor bumps. This package versions separately from the library and starts at
+0.1.0, as the Spring Boot starter does from `acemq-java-amqp`: it tracks FastAPI and
+Starlette's release train as much as AceMQ's.
 
 ## What it is not
 

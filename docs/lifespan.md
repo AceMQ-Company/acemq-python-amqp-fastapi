@@ -59,6 +59,35 @@ later lifespan fails on the way up, the exception is thrown *into* the earlier o
 their `yield` — a bare line after it never runs. `acemq.lifespan` is written this way
 for exactly that reason, and there is a test that would fail if it stopped being.
 
+### Except for what needs the connection
+
+**Put AceMQ last** is about the things handlers *use*. Something that uses the
+**connection** — an `OutboxRelay`, a `Requester`, a `Scheduler`, a stream reader — has the
+opposite requirement, because `acemq.connection` raises until the lifespan has opened it.
+Those go to the right:
+
+```python
+@asynccontextmanager
+async def relay(app: FastAPI) -> AsyncIterator[dict[str, Any]]:
+    running = OutboxRelay(acemq.connection, store)
+    running.start()
+    try:
+        yield {"relay": running}
+    finally:
+        await running.close()
+
+app = FastAPI(lifespan=compose_lifespans(database, acemq.lifespan, relay))
+```
+
+Outside in: `database`, then AceMQ, then `relay`. The relay is built after the connection
+is open and closed before the connection goes away, and the handlers still have the pool
+either side of themselves.
+
+The two rules collide when a *handler* needs one of those objects — a handler that asks
+another service a question needs a `Requester`, and nothing can be on both sides of the
+same `yield`. [Patterns](patterns.md#when-the-handlers-need-the-thing-that-needs-the-connection)
+has the way through, which is `acemq.consumer.auto_start=false` and `start_consumer`.
+
 ## Without an ASGI application at all
 
 A worker process that consumes and serves no HTTP wants the same start-up, and should

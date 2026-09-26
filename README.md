@@ -48,8 +48,18 @@ The extra index is needed because AceMQ is not on PyPI before 1.0. It brings
 `acemq-amqp[rabbitmq]`, FastAPI and `pydantic-settings` with it — no second install.
 
 Python 3.10 or newer, which is the library's floor. The dependency on the library is
-`>=0.7.0,<0.8`: this repository's whole job is proving the *published* package works,
-so it installs it from the index like anybody else.
+`>=0.7.0,<0.8` — a range rather than a pin, so pip resolves the newest release inside it
+and the range is also the constraint your application inherits. The current library
+release is **0.7.1**, and that is what this repository's CI tests against: its whole job
+is proving the *published* package works, so it installs it from the index like anybody
+else.
+
+In a `requirements.txt` the index goes in the file:
+
+```
+--extra-index-url https://acemq.org/pypi/simple/
+acemq-amqp-fastapi==0.1.0
+```
 
 ## What it wires up
 
@@ -160,7 +170,7 @@ application for the case where the handlers deserve their own process.
 
 ## Documentation
 
-Ten pages, published at
+Seventeen pages, published at
 **<https://acemq.org/acemq-python-amqp-fastapi/>**. They read as markdown in
 [docs/](docs/) too, and render with `.github/scripts/build-docs-site.sh`.
 
@@ -169,8 +179,16 @@ Ten pages, published at
 | **Start here** | [docs/index.md](docs/index.md) · [Getting started](docs/getting-started.md) |
 | **Reference** | [Configuration](docs/configuration.md) — every `acemq.*` setting |
 | **Usage** | [The lifespan](docs/lifespan.md) · [Consumers](docs/consumers.md) · [Publishing from a route](docs/publishing.md) · [Testing](docs/testing.md) |
-| **Operations** | [Health](docs/health.md) · [Shutdown](docs/shutdown.md) |
+| **Patterns** | [Patterns from FastAPI](docs/patterns.md) · [Request-reply](docs/request-reply.md) · [Streams](docs/streams.md) · [Serialization](docs/serialization.md) |
+| **Operations** | [Security](docs/security.md) · [Topology](docs/topology.md) · [Health](docs/health.md) · [Observability](docs/observability.md) · [Shutdown](docs/shutdown.md) |
 | **Support** | [Enterprise support](https://acemq.com) |
+
+[Patterns from FastAPI](docs/patterns.md) is the one to read after Getting started. It
+lists every pattern `acemq-amqp` carries — idempotent consumer, outbox, saga, claim check,
+scheduler, replay, routing slip — and says for each whether there is an `acemq.*` setting
+or whether it is four lines in a lifespan. For most of them it is the latter, and saying so
+is more useful than a setting that pretended a database handle could come from an
+environment variable.
 
 ## Its own version line
 
