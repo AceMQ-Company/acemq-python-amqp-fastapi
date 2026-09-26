@@ -21,7 +21,7 @@
     @app.post("/orders")
     async def place(order: Order, orders: Orders) -> dict[str, str]:
         result = await orders.send(order.model_dump())
-        return {"id": result.envelope.id}
+        return {"id": result.message_id}
 
 Every dependency here finds the integration through ``request.app.state.acemq``,
 which the lifespan sets. That is what makes two applications in one process — a

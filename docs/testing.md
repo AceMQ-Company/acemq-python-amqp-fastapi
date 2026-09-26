@@ -8,12 +8,12 @@ The decorator returns the function unchanged, so a handler is an ordinary async
 function:
 
 ```python
-from acemq_amqp import Envelope, Message, accept, reject
+from acemq_amqp import Action, Envelope, Message
 
 def a_message(payload: object) -> Message:
     return Message(
         payload=payload,
-        envelope=Envelope.new(),
+        envelope=Envelope(),
         routing_key="orders",
         content_type="application/json",
         redelivered=False,
@@ -21,8 +21,16 @@ def a_message(payload: object) -> Message:
     )
 
 async def test_rejects_an_order_with_no_sku() -> None:
-    assert await handle_order(a_message({"qty": 1})) == reject("no sku")
+    decision = await handle_order(a_message({"qty": 1}))
+    assert decision.action is Action.REJECT
 ```
+
+`Envelope()` needs no arguments: every field has a default and the id is a fresh `uuid4`.
+
+Assert on `decision.action` rather than comparing against `reject(...)`. `Ack` carries the
+exception the handler passed as its `error`, and two exceptions built from the same message
+are not equal — so `== reject(ValueError("no sku"))` fails for a reason that has nothing to
+do with the handler.
 
 No broker, no lifespan, no application. This is where the business logic belongs and
 where most of the tests should be.

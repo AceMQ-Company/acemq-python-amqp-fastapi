@@ -37,7 +37,7 @@ that knows a blocked broker is not a reason to restart.
     @app.post("/orders")
     async def place(orders=Depends(publishes("orders"))) -> dict[str, str]:
         result = await orders.send({"id": "1"})
-        return {"id": result.envelope.id}
+        return {"id": result.message_id}
 
 This package re-exports nothing from :mod:`acemq_amqp`. Messages, acknowledgements,
 codecs and retry policies come from the library under their own names, so the two

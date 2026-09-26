@@ -10,10 +10,13 @@ from acemq_amqp import Ack, Message, accept, reject, retry
 async def handle(message: Message) -> Ack:
     order = message.payload
     if not order.get("sku"):
-        return reject("no sku")
+        return reject(ValueError("no sku"))
     await warehouse.reserve(order)
     return accept()
 ```
+
+`reject`, `retry` and `park` take a `BaseException`, not a string — passing the exception is
+what puts the reason on the message an operator eventually reads off `orders.dlq`.
 
 The handler takes a `Message` and returns an `Ack`. Both are the library's — this
 package adds no message type of its own, and
@@ -33,7 +36,7 @@ lifespan and no event loop belonging to anybody:
 
 ```python
 async def test_rejects_an_order_with_no_sku() -> None:
-    assert await handle(a_message({"qty": 1})) == reject("no sku")
+    assert (await handle(a_message({"qty": 1}))).action is Action.REJECT
 ```
 
 Registering after the lifespan has opened is refused, with a message saying so. The
