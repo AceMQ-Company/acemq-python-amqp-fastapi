@@ -14,6 +14,92 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+Seven documentation pages, which take the site from ten to seventeen. The gap they close
+is the same one in every case: the library promotes a set of patterns, and nothing here
+said where any of them goes in a FastAPI application.
+
+- **[Patterns from FastAPI](docs/patterns.md)** is the hub, and the table at the top of it
+  is the part worth having. For every pattern the library carries it says whether there is
+  an `acemq.*` setting or whether it is four lines in a lifespan — and for most of them it
+  is the latter. That is stated rather than worked around: a pattern needing a database
+  handle, a key or a callable cannot be described by an environment variable, and a setting
+  that pretended otherwise would be worse than the four lines. The page then names the two
+  seams — `connection_factory` for anything on the connection itself, a lifespan composed
+  *inside* this one for anything that needs the connection open — and works through the
+  idempotent consumer, middleware pipelines, ordering by key, the outbox, the claim check,
+  the saga, routing slips, the scheduler, replay and consumer groups.
+- **[Security](docs/security.md)**. TLS and why `acemq.tls.*` is only consulted for
+  `amqps://`, why naming a certificate authority replaces the machine's trust store rather
+  than adding to it, mutual TLS, `nothing-at-all` and what it costs, development
+  certificates and the marker every AceMQ library refuses, and encrypting the payload with
+  `EncryptedCodec` in the three places it can be wired. Also two things the package does
+  *not* do: `credentials_from_file` is not reachable through a setting, and the health
+  route carries no authentication.
+- **[Streams](docs/streams.md)**. A stream is declarable through `acemq.topology.queues`
+  via `args`, because the library's `Topology.queue` keeps a kind that `args` already names
+  — but `@acemq.consumer` is the wrong tool for reading one, and the page says so plainly
+  rather than showing a registration that half works. `read_stream` forces `no_retry()` and
+  refuses a handler that asks for a retry, because retrying on a stream appends a second
+  copy to the log; a registration through the decorator would get the offset and none of
+  that. So a reader is hand-wired, and the page is explicit that `AceMQ.drain()` does not
+  know about it.
+- **[Request-reply](docs/request-reply.md)**. A page of its own because it is the one
+  pattern where a message and an HTTP request have the same lifetime: three deadlines that
+  have to agree, why `acemq.confirm_timeout` shows up in the p99 of a route that never
+  mentions it, and what a cancelled request leaves behind.
+- **[Serialization](docs/serialization.md)**. What `acemq.format` can and cannot name —
+  Protobuf and Avro cannot, because neither format's bytes describe themselves — the
+  `register_codec` bridge that gives a constructed codec a name anyway, and the two
+  pydantic details that bite: `model_dump(mode="json")` on the way out and
+  `model_validate` at the top of a handler on the way in.
+- **[Topology](docs/topology.md)**. What the lifespan applies and when, why a durable queue
+  is a quorum queue, and an honest section on drift: AMQP cannot enumerate what is there,
+  so `Topology.plan()` is a statement of intent and the thing that actually catches drift
+  is the broker's `PRECONDITION_FAILED` at start-up.
+- **[Observability](docs/observability.md)**. A `/metrics` route from `prometheus_text` with
+  nothing installed, or from `PrometheusObserver` for a service that already has a
+  registry; the OpenTelemetry interceptors as constructor arguments; every metric the
+  library writes and which one to alert on; and why a blocked broker is the failure mode
+  this stack hides best.
+
+### Changed
+
+- The version tables in [the overview](docs/index.md#versions) and
+  [getting started](docs/getting-started.md) now name **`acemq-amqp` 0.7.1** as the release
+  this is tested against, alongside the declared range. The range is unchanged and
+  deliberately so: `>=0.7.0,<0.8` names a set, and rewriting it on every 0.7.z release
+  would be an exact pin with extra punctuation — and a lie to every application that
+  inherits it as a constraint.
+- Getting started explains `--extra-index-url` rather than `--index-url` (the latter
+  replaces PyPI instead of adding to it, and the install then fails on FastAPI), and shows
+  the `requirements.txt` and `pyproject.toml` forms.
+- The lifespan page gains *Except for what needs the connection*. "Put AceMQ last" is about
+  the things handlers use; something that uses the connection has the opposite requirement,
+  and the two pages now agree instead of one of them being silently incomplete.
+
+### Fixed
+
+- `docs/testing.md` built a message with `Envelope.new()`, which does not exist —
+  `Envelope()` needs no arguments. The same example compared a handler's answer against
+  `reject("no sku")`, which fails whatever the handler does: `Ack` carries the exception,
+  and two exceptions built from the same message are not equal. It asserts on
+  `decision.action` now, and says why.
+- `reject`, `retry` and `park` take a `BaseException`, not a string. Two examples passed a
+  string, which works at runtime and is a type error — and loses the reason that would
+  otherwise be on the dead-lettered message.
+- The module docstrings of `acemq_fastapi` and `acemq_fastapi.dependencies` read
+  `result.envelope.id` off a publish. `PublishResult` has no `envelope`; the field is
+  `message_id`, which is what every other example already used.
+- `tests/test_documented_wiring.py` asserts the recipes the new pages tell people to write:
+  an inner lifespan seeing an open connection either side of its `yield`,
+  `auto_start=false` with `start_consumer`, `add_consumer` with a wrapped handler,
+  `register_codec` reaching `acemq.format`, an unknown format failing the *start* rather
+  than the first publish, and a stream declared through the topology setting. None of it is
+  new API, which is the point: a documented recipe with nothing asserting it goes stale in
+  the same silence as a comment.
+
 ## [0.1.0] - 2026-09-20
 
 First release. It wires **`acemq-amqp` 0.7.0** into a FastAPI application and does
