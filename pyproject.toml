@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acemq-amqp-fastapi"
-version = "0.1.3"
+version = "0.1.4"
 description = "FastAPI integration for AceMQ AMQP: a lifespan that owns the connection and the consumers, and dependencies for publishing from a route"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -24,13 +24,14 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-# The floor is 0.7.10. The health check calls ``Connection.blocked``, which 0.6.0
+# The floor is 0.7.11. The health check calls ``Connection.blocked``, which 0.6.0
 # does not have, so nothing below 0.7.0 would ever do; 0.7.9 is where a stream
 # reader resumes where it was after a reconnection, the publishes the library makes
 # on the application's behalf are confirmed and kept when unroutable, and an
 # idempotent handler that raises gives its claim back; 0.7.10 is where a scheduled
 # message that is due but reaches no queue is kept and tried again rather than
-# dropped. An application on this package should not be able to resolve a release without those. The ceiling stays one minor ahead, because a pre-1.0
+# dropped. 0.7.11 is where a reply the requester cannot decode
+# raises the codec's error at once instead of being lost and timing out. An application on this package should not be able to resolve a release without those. The ceiling stays one minor ahead, because a pre-1.0
 # library puts its breaking changes in minor bumps — 0.7.0 itself rewrote the
 # blocked health detail — and moving it should be a decision somebody made.
 #
@@ -45,7 +46,7 @@ classifiers = [
 # ends up being maintained forever. The starter this is modelled on does not write
 # its own binder either; it uses Spring's.
 dependencies = [
-  "acemq-amqp[rabbitmq]>=0.7.10,<0.8",
+  "acemq-amqp[rabbitmq]>=0.7.11,<0.8",
   "fastapi>=0.110",
   "pydantic-settings>=2.2",
 ]

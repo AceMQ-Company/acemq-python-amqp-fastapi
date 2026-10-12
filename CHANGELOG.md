@@ -14,6 +14,20 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-12
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.11.** The dependency is now
+  `acemq-amqp[rabbitmq]>=0.7.11,<0.8`, so an application that installs this package can
+  no longer resolve a release without this fix:
+  - **A request whose reply cannot be decoded fails at once.** A request made from a
+    FastAPI route whose reply the requester's codec could not read used to wait out its
+    whole timeout and raise `RequestTimeoutError`, because the reply was lost. Now `ask`
+    raises the decode error as soon as the reply arrives.
+- [Request-reply](docs/request-reply.md) and the version tables name 0.7.11, and
+  `release.yml` checks the built wheel for the new floor.
+
 ## [0.1.3] - 2026-10-12
 
 ### Changed
@@ -297,7 +311,8 @@ morning.
   [docs/index.md](docs/index.md) explains why a Django integration is a different design
   rather than a missing feature.
 
-[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.0...v0.1.1

@@ -76,6 +76,12 @@ responder said it could not do it — two different failures that deserve two di
 status codes, which is the argument for catching them separately rather than letting
 either become a 500.
 
+A reply the requester's codec cannot read — a responder that answered in another format —
+raises the codec's own error from `ask` as soon as it arrives (for example `FatalError` for
+a body that is not JSON), rather than being lost and leaving the route to wait out the
+timeout. That is from `acemq-amqp` 0.7.11. A `ResponderError` whose body is unreadable is
+still raised as a `ResponderError`.
+
 `ask(..., timeout=...)` overrides the requester's default for one call.
 
 ## The reply queue
