@@ -451,6 +451,12 @@ Delivery is not to the second: a message hops down rungs of an hour, ten minutes
 minute, ten seconds and a second, so it arrives at or after the time asked for. For a
 reminder that is correct. For an auction closing it is not.
 
+A message that falls due before anything is bound to its destination is kept, not
+dropped: it goes back through the ten-second rung and is tried again until a queue is
+there to take it, and `delivered` counts only the messages that arrived. That includes
+`after(timedelta(0), ...)` to a destination not yet bound, which keeps the message rather
+than raising `PublishError`. Both are from `acemq-amqp` 0.7.10.
+
 ## Replay
 
 Moving messages off a dead-letter queue back to where they came from, once the bug is

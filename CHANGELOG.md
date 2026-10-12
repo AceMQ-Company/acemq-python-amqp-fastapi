@@ -14,6 +14,22 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-12
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.10.** The dependency is now
+  `acemq-amqp[rabbitmq]>=0.7.10,<0.8`, so an application that installs this package can
+  no longer resolve a release without this fix:
+  - **A scheduled message sent to a destination not yet bound is kept, not dropped.** In
+    0.7.9 a message that fell due with no queue bound to its destination was dead-lettered
+    to a queue that is never declared, lost, and still counted in `delivered`. Now it goes
+    back through the ten-second rung and is tried again until a queue is there, and
+    `delivered` counts only the messages that arrived. `after(timedelta(0), ...)` to such a
+    destination keeps the message too, where before it raised `PublishError`.
+- [Patterns](docs/patterns.md#scheduling), [publishing](docs/publishing.md) and the version
+  tables name 0.7.10, and `release.yml` checks the built wheel for the new floor.
+
 ## [0.1.2] - 2026-10-12
 
 ### Changed
@@ -281,7 +297,8 @@ morning.
   [docs/index.md](docs/index.md) explains why a Django integration is a different design
   rather than a missing feature.
 
-[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/releases/tag/v0.1.0

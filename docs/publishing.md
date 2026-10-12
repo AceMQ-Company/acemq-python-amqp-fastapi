@@ -80,11 +80,16 @@ where the connection closed underneath it. See [shutdown](shutdown.md).
 Not every publish is one a route makes. The library also publishes on your behalf —
 a retry hop, parking a message or sending it to the dead-letter queue, the outbox
 relay, `replay()`, the scheduler's hops and final delivery, and a routing slip's or
-pipeline's hop to its next stage — and from `acemq-amqp` 0.7.9, which this package
+pipeline's hop to its next stage — and from `acemq-amqp` 0.7.10, which this package
 requires, every one of those is always confirmed and always mandatory: a message whose
 destination has no queue bound to it is kept where it was and reported as unroutable,
 never dropped and treated as done. The `mandatory` you choose for your own `Publisher`
 is unaffected.
+
+The scheduler's final delivery is the one that arrived last. In 0.7.9 a due message
+that reached no queue was dead-lettered to a queue that is never declared — dropped —
+and counted as delivered. From 0.7.10 it is kept and tried again every ten seconds
+until a queue is bound, and `delivered` counts only the messages that arrived.
 
 ## Back pressure
 
