@@ -75,6 +75,17 @@ throughput a batch exists for.
 It raises `PublishError` when any message was not confirmed, which includes the case
 where the connection closed underneath it. See [shutdown](shutdown.md).
 
+## What the library publishes for you
+
+Not every publish is one a route makes. The library also publishes on your behalf —
+a retry hop, parking a message or sending it to the dead-letter queue, the outbox
+relay, `replay()`, the scheduler's hops and final delivery, and a routing slip's or
+pipeline's hop to its next stage — and from `acemq-amqp` 0.7.9, which this package
+requires, every one of those is always confirmed and always mandatory: a message whose
+destination has no queue bound to it is kept where it was and reported as unroutable,
+never dropped and treated as done. The `mandatory` you choose for your own `Publisher`
+is unaffected.
+
 ## Back pressure
 
 `acemq.max_outstanding_publishes` bounds how many publishes may be waiting for the

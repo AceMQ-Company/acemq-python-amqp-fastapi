@@ -14,6 +14,30 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-12
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.9.** The dependency is now `acemq-amqp[rabbitmq]>=0.7.9,<0.8`.
+  The floor moves for what the library fixed, not to track its version number: an
+  application that installs this package can no longer resolve a release without these.
+  - **A stream reader resumes where it was after a reconnection.** Earlier releases
+    subscribed again at the offset first asked for, so a reader that began at the start
+    of the stream was handed all of it again and one that began at the end skipped what
+    arrived while it was away.
+  - **The publishes the library makes on your behalf are confirmed and kept when
+    unroutable, rather than lost.** Retry hops, parking and the dead-letter queue, the
+    outbox relay, `replay()`, the scheduler, and routing-slip and pipeline hops all
+    publish mandatory now: a message nothing is bound to stays where it was and is
+    reported, where before it was confirmed by the broker, dropped and treated as done.
+    [Publishing](docs/publishing.md) says so.
+  - **An idempotent handler that raises gives its claim back.** Before, the retry found
+    the key "in progress" and the message went round without the handler running until
+    the claim aged out — an hour for the in-memory store.
+- The version tables in [the overview](docs/index.md#versions) and
+  [getting started](docs/getting-started.md) name 0.7.9 as the release this is tested
+  against, and `release.yml` checks the built wheel for the new floor.
+
 ## [0.1.1] - 2026-09-26
 
 ### Added
@@ -257,5 +281,7 @@ morning.
   [docs/index.md](docs/index.md) explains why a Django integration is a different design
   rather than a missing feature.
 
-[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/releases/tag/v0.1.0
