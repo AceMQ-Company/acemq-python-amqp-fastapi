@@ -32,7 +32,7 @@ environment variable uses, so this package coerces it.
 | `acemq.prefetch` | `100` | Unacknowledged messages a consumer holds |
 | `acemq.publisher_confirms` | `true` | **Cannot be turned off.** See below |
 | `acemq.max_outstanding_publishes` | `1000` | Publishes that may be waiting at once |
-| `acemq.confirm_timeout` | `30s` | How long a publish waits for room before raising |
+| `acemq.confirm_timeout` | `30s` | How long a publish waits for room, or for its confirm, before raising |
 | `acemq.connection_timeout` | `10s` | How long the lifespan gives the broker to answer |
 
 `publisher_confirms=false` is **refused**, with a message saying why, rather than

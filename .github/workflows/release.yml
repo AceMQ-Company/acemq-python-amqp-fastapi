@@ -52,7 +52,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish, without the leading v (e.g. 0.1.4)'
+        description: 'Version to publish, without the leading v (e.g. 0.1.5)'
         required: true
 
 # Least privilege for every job that does not ask for more. Nothing here needs
@@ -206,8 +206,8 @@ jobs:
           pin = next((r for r in requires if r.startswith("acemq-amqp")), None)
           if pin is None:
               problems.append("the wheel does not depend on acemq-amqp at all")
-          elif ">=0.7.11" not in pin or "<0.8" not in pin:
-              problems.append(f"the acemq-amqp pin is '{pin}', not >=0.7.11,<0.8")
+          elif ">=0.7.12" not in pin or "<0.8" not in pin:
+              problems.append(f"the acemq-amqp pin is '{pin}', not >=0.7.12,<0.8")
 
           if problems:
               print("::error::the built wheel is not what this release means to publish:")

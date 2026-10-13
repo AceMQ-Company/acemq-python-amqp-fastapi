@@ -158,7 +158,11 @@ make it visible:
   waits for room instead of growing the heap — and the requests behind it block, which is
   back pressure reaching the client. See [publishing](publishing.md#back-pressure).
 - `acemq.confirm_timeout` ends the wait, so a publish eventually raises rather than hanging
-  for the length of the incident.
+  for the length of the incident. That includes the first publish after the alarm, which
+  is written before the broker says it is blocked: from `acemq-amqp` 0.7.12 it raises
+  `PublishError` once the timeout passes — it may or may not have been stored — and the
+  route returns an error instead of a request that never comes back. Publishes after it
+  are refused at once with `PublishingPausedError`, because nothing was sent.
 
 Without the second and third a blocked broker looks like a healthy service until the
 process is killed for memory, which is the same symptom as a leak and gets diagnosed as

@@ -14,6 +14,23 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-13
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.12.** The dependency is now
+  `acemq-amqp[rabbitmq]>=0.7.12,<0.8`, so an application that installs this package can
+  no longer resolve a release without this fix:
+  - **A route publishing while the broker is under a memory alarm gets an error.** The
+    first publish after RabbitMQ raised a memory or disk alarm used to wait for a confirm
+    with no bound, so the request behind it never returned. It now raises `PublishError`
+    once `acemq.confirm_timeout` passes (30 seconds by default here): the message was
+    written, so it may or may not have been stored. Publishes made once the block is
+    known are still refused at once with `PublishingPausedError`, as before.
+- [Publishing](docs/publishing.md#back-pressure), [observability](docs/observability.md#a-blocked-broker)
+  and the version tables name 0.7.12, and `release.yml` checks the built wheel for the
+  new floor.
+
 ## [0.1.4] - 2026-10-12
 
 ### Changed
@@ -311,7 +328,8 @@ morning.
   [docs/index.md](docs/index.md) explains why a Django integration is a different design
   rather than a missing feature.
 
-[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/AceMQ-Company/acemq-python-amqp-fastapi/compare/v0.1.1...v0.1.2

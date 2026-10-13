@@ -95,7 +95,10 @@ until a queue is bound, and `delivered` counts only the messages that arrived.
 
 `acemq.max_outstanding_publishes` bounds how many publishes may be waiting for the
 broker at once — a thousand by default. The thousand-and-first waits for room rather
-than queueing in memory, and gives up after `acemq.confirm_timeout`.
+than queueing in memory, and gives up after `acemq.confirm_timeout`. The same timeout
+bounds the wait for a confirm, so a publish written just as the broker raises a memory
+alarm raises `PublishError` after it rather than waiting for the alarm to clear — it may
+or may not have been stored. That is from `acemq-amqp` 0.7.12.
 
 That bound matters more in an HTTP process than in a worker. A burst of requests is a
 burst of publishes, and without it a slow broker turns into unbounded memory growth
