@@ -14,6 +14,19 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-20
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.13.** The dependency is now
+  `acemq-amqp[rabbitmq]>=0.7.13,<0.8`, so an application that installs this package can
+  no longer resolve a release without this fix:
+  - **A filtered replay returns only once the messages it passed over are back.**
+    `replay(..., only=...)` from an admin route used to return before the declined
+    messages were requeued, so a `message_count` read straight after could report 0 on a
+    quorum queue. It now waits, up to ten seconds, until the queue's depth shows them.
+- [Patterns](docs/patterns.md#replay) says so.
+
 ## [0.1.5] - 2026-10-13
 
 ### Changed

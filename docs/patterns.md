@@ -476,7 +476,9 @@ async def replay_dlq(queue: str, connection: AceMQConnection) -> dict[str, objec
 this is an HTTP request, and a dead-letter queue with two million messages on it is not a
 request that should be allowed to finish. `only=` takes a
 `Callable[[Envelope, bytes], bool]` and is how one message, or one day's, is moved rather
-than all of them.
+than all of them. The messages it passes over stay on the dead-letter queue, in order, and
+are back on it before the call returns, so a depth read straight after counts them (from
+`acemq-amqp` 0.7.13; before it, a quorum queue could read 0).
 
 `restart` is on by default: the messages go back with their attempt counter reset, so the
 retry ladder applies again from the beginning. Off replays them as they were, which is

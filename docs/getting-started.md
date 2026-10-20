@@ -20,22 +20,22 @@ In a `requirements.txt`, the index goes in the file so nobody has to remember th
 
 ```
 --extra-index-url https://acemq.org/pypi/simple/
-acemq-amqp-fastapi==0.1.5
+acemq-amqp-fastapi==0.1.6
 ```
 
 Or, for a project with a `pyproject.toml`:
 
 ```toml
 [project]
-dependencies = ["acemq-amqp-fastapi>=0.1.5,<0.2"]
+dependencies = ["acemq-amqp-fastapi>=0.1.6,<0.2"]
 ```
 
 with the index configured where the install happens — `PIP_EXTRA_INDEX_URL`, a
 `pip.conf`, or `[[tool.uv.index]]`. A `pyproject.toml` cannot carry an index URL itself;
 that is pip's configuration, not the project's metadata.
 
-This release wires `acemq-amqp` **0.7.12**, the current library release, through a declared
-range of `>=0.7.12,<0.8` — see [the version table](index.md#versions). Installing
+This release wires `acemq-amqp` **0.7.13**, the current library release, through a declared
+range of `>=0.7.13,<0.8` — see [the version table](index.md#versions). Installing
 `acemq-amqp-fastapi` brings whichever release inside that range is newest, so there is
 nothing to pin yourself.
 
