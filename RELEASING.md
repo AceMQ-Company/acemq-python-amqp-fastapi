@@ -35,7 +35,7 @@ lockfile that already names it working.
    `pyproject.toml` and it is part of the release:
 
    ```
-   acemq-amqp[rabbitmq]>=0.7.13,<0.8
+   acemq-amqp[rabbitmq]>=0.7.14,<0.8
    ```
 
    `release.yml` reads that pin back out of the **built wheel** and refuses a
@@ -47,7 +47,8 @@ lockfile that already names it working.
    undecodable reply fails the request at once instead of timing out, and 0.7.12
    is where a publish into a broker under a memory alarm fails within the confirm
    timeout instead of hanging, and 0.7.13 is where a filtered replay returns only
-   once the messages it passed over are back on the queue — and the
+   once the messages it passed over are back on the queue, and 0.7.14 is where a
+   dead letter or park the broker refuses is requeued rather than dropped — and the
    ceiling is there because a pre-1.0 library puts its breaking changes in minor
    bumps.
 
@@ -148,7 +149,7 @@ would put the two on a schedule neither of them chose. The reverse holds too: a
 library release that changes nothing above the transport should not oblige this
 package to reissue itself.
 
-What ties them is the pin, not the number. `>=0.7.13,<0.8` is the statement about
+What ties them is the pin, not the number. `>=0.7.14,<0.8` is the statement about
 which library this release works with, it is in the wheel's metadata where a
 resolver can act on it, and `release.yml` checks it is still there.
 

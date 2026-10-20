@@ -80,7 +80,7 @@ def publishes(
     *,
     codec: Codec | None = None,
     persistent: bool = True,
-    mandatory: bool = False,
+    mandatory: bool = True,
 ) -> Any:
     """Builds a dependency yielding a publisher for one destination.
 
@@ -99,7 +99,8 @@ def publishes(
     :param codec: a codec other than the connection's
     :param persistent: ask the broker to write these messages to disk
     :param mandatory: fail when a message reaches no queue at all, rather than
-        letting the broker drop it silently
+        letting the broker drop it silently. On by default, as in
+        ``acemq-amqp`` 0.7.14; ``False`` for a fan-out where no subscriber is normal
     :returns: something to put in ``Depends(...)``
     """
 

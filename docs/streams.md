@@ -106,7 +106,8 @@ the decorator is the wrong tool.** The reason is not that the offset argument is
 `read_stream` does around the handler:
 
 - it forces `retry=no_retry()` rather than inheriting the connection's policy, and
-- it wraps the handler so one returning `retry()` is refused with a `StreamRetryError`.
+- it wraps the handler so one returning `retry()`, or raising, stops the reader rather
+  than republishing (see [below](#what-a-failing-handler-does)).
 
 Both close the same hole from the two directions a retry can arrive from. Retrying on a
 stream means republishing to it, which appends a second copy of the message for every
@@ -217,7 +218,15 @@ same stream want two names, or they share a position neither of them chose.
 
 ## What a failing handler does
 
-There is no retry, so there are two outcomes and they are enough.
+A handler that **raises**, or returns `retry()`, **stops the reader** at that message: the
+subscription is closed, nothing after it is handled, and no copy is written anywhere —
+not to the stream, not to `readings.dlq`. The message is still on the log, so a reader
+restarted at that offset once the fault is fixed sees it again. That is the default from
+`acemq-amqp` 0.7.14; `read_stream(..., on_failure="dead_letter")` is the old behaviour, a
+copy in `readings.dlq` and carry on. A stopped reader is closed, so the process keeps
+serving requests with a projection that has stopped moving — watch for it.
+
+A handler that wants to carry on past a bad message says so, and there are two ways.
 
 `accept()` checkpoints past the message and leaves the failure for the handler to record.
 That is what most projections want: the message is still on the log, so once whatever
@@ -229,7 +238,8 @@ it — and leaves the log untouched. For the message that will never work.
 `reject()` works too and puts a copy in `readings.dlq`. It is not one of the two because
 "this message is bad" is rarely what a stream failure is.
 
-`retry()` raises `StreamRetryError`, as above.
+`retry()` stops the reader, as above; with `on_failure="dead_letter"` it is refused with
+`StreamRetryError` instead.
 
 ## Running the reader in its own process
 

@@ -48,9 +48,9 @@ The extra index is needed because AceMQ is not on PyPI before 1.0. It brings
 `acemq-amqp[rabbitmq]`, FastAPI and `pydantic-settings` with it — no second install.
 
 Python 3.10 or newer, which is the library's floor. The dependency on the library is
-`>=0.7.13,<0.8` — a range rather than a pin, so pip resolves the newest release inside it
+`>=0.7.14,<0.8` — a range rather than a pin, so pip resolves the newest release inside it
 and the range is also the constraint your application inherits. The current library
-release is **0.7.13**, and that is what this repository's CI tests against: its whole job
+release is **0.7.14**, and that is what this repository's CI tests against: its whole job
 is proving the *published* package works, so it installs it from the index like anybody
 else.
 
@@ -58,7 +58,7 @@ In a `requirements.txt` the index goes in the file:
 
 ```
 --extra-index-url https://acemq.org/pypi/simple/
-acemq-amqp-fastapi==0.1.6
+acemq-amqp-fastapi==0.1.7
 ```
 
 ## What it wires up

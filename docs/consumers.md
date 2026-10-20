@@ -144,3 +144,9 @@ ACEMQ_CONSUMER__RETRY__WAIT_IN_BROKER_FROM=10
 [shutdown](shutdown.md): a wait held in this process is a wait the drain has to sit
 through. Ten seconds is a good threshold. The rung queues those waits need are declared
 with the topology when `acemq.topology.declare_retry_rungs` is on, which it is.
+
+With the ladder off, a consumer makes **one attempt**: a handler that raises, or returns
+`retry(e)`, goes to `{queue}.dlq` with the reason on `x-acemq-error`. If the broker refuses
+that copy — `{queue}.dlq` or `{queue}.parked` is missing, or nacks it — the delivery is held
+for a second and requeued, never dropped, so it is set aside again once the queue takes it
+(from `acemq-amqp` 0.7.14; before it, a refused copy dropped the message).

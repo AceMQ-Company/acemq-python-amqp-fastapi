@@ -478,11 +478,16 @@ request that should be allowed to finish. `only=` takes a
 `Callable[[Envelope, bytes], bool]` and is how one message, or one day's, is moved rather
 than all of them. The messages it passes over stay on the dead-letter queue, in order, and
 are back on it before the call returns, so a depth read straight after counts them (from
-`acemq-amqp` 0.7.13; before it, a quorum queue could read 0).
+`acemq-amqp` 0.7.14; before it, a quorum queue could read 0).
 
 `restart` is on by default: the messages go back with their attempt counter reset, so the
 retry ladder applies again from the beginning. Off replays them as they were, which is
 what to use when the ladder is not what you want re-run.
+
+A replayed message carries `acemq-replayed-at` in milliseconds with a `Z`, as in
+`2026-02-03T04:05:06.789Z`, and `x-acemq-` headers this library has no field for — written
+by a newer version or another language — survive the replay, as they survive every retry
+hop, dead letter and park (from `acemq-amqp` 0.7.14).
 
 `ReplayError` carries the partial `ReplayResult`, so a failure half-way still says how
 many moved.

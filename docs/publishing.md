@@ -25,6 +25,20 @@ key. For a topic exchange, name both:
 Events = Annotated[Publisher, Depends(publishes("order.placed", "events"))]
 ```
 
+## A message that reaches no queue raises
+
+`publishes()` builds a **mandatory** publisher by default, as `acemq-amqp` 0.7.14 does: a
+message the broker can route to no queue comes back, and `send` raises `PublishError` with
+`unroutable` set rather than the broker dropping it in silence. That is nearly always a
+typo in a routing key or a queue not declared yet. A destination where no subscriber at
+all is normal — a fan-out nobody listens to yet — opts out:
+
+```python
+Audit = Annotated[Publisher, Depends(publishes("audit", "events", mandatory=False))]
+```
+
+Up to 0.1.6 the default was `mandatory=False`, so an unroutable publish returned normally.
+
 ## Put the alias at module scope
 
 With `from __future__ import annotations` — or on any Python where a route's

@@ -14,6 +14,26 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-10-20
+
+### Changed
+
+- **`publishes()` and `AceMQ.publisher()` are mandatory by default**, as `acemq-amqp`
+  0.7.14's `Connection.publisher` is: a message that reaches no queue raises `PublishError`
+  with `unroutable` set instead of being dropped by the broker. Pass `mandatory=False` for a
+  destination where no subscriber is normal. Up to 0.1.6 the default was `False`.
+- **Requires `acemq-amqp` 0.7.14.** The dependency is now
+  `acemq-amqp[rabbitmq]>=0.7.14,<0.8`, so an application that installs this package gets:
+  - **a failing stream handler stops the reader** at that message, with no copy written
+    anywhere; `read_stream(..., on_failure="dead_letter")` keeps the old behaviour;
+  - **a dead letter or park the broker refuses is requeued** after a one-second pause,
+    never dropped;
+  - **unknown `x-acemq-` headers survive** every retry hop, dead letter, park and replay;
+  - **`acemq-replayed-at` in milliseconds with `Z`**.
+- [Publishing](docs/publishing.md#a-message-that-reaches-no-queue-raises),
+  [streams](docs/streams.md#what-a-failing-handler-does),
+  [consumers](docs/consumers.md#retries) and [patterns](docs/patterns.md#replay) say so.
+
 ## [0.1.6] - 2026-10-20
 
 ### Changed

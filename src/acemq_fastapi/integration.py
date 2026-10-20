@@ -340,7 +340,7 @@ class AceMQ:
         *,
         codec: Codec | None = None,
         persistent: bool = True,
-        mandatory: bool = False,
+        mandatory: bool = True,
     ) -> Publisher:
         """A publisher for a destination, built once and reused.
 
