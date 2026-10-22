@@ -14,6 +14,16 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-21
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.15**, from 0.7.14 (`acemq-amqp[rabbitmq]>=0.7.15,<0.8`).
+  Nothing in this package's surface changed. What an application gains: `mq.pipeline(name)`
+  builds a pipeline step by step, async and sync, and a step returning `NOTHING` before the
+  last one ends the run with `outcome=ended_early` instead of being passed on. The release
+  check reads the new floor back out of the built wheel.
+
 ## [0.1.7] - 2026-10-20
 
 ### Changed
