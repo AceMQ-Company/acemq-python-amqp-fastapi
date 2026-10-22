@@ -14,6 +14,18 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-10-22
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.16**, from 0.7.15 (`acemq-amqp[rabbitmq]>=0.7.16,<0.8`).
+  Nothing in this package's surface changed. What an application gains: a `follow_slip`
+  step and every step of `mq.pipeline(...)` hand the next stop every application header the
+  message arrived with (a tenant, a `traceparent`) and every unknown `x-acemq-` header, where
+  they used to be lost at the first hop; and `record(..., envelope=...)` stamps the
+  connection's `x-acemq-origin` when the envelope has none, as a direct publish does. The
+  release check reads the new floor back out of the built wheel.
+
 ## [0.1.8] - 2026-10-21
 
 ### Changed
