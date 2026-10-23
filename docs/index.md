@@ -57,20 +57,20 @@ knowing which is which saves looking for a setting that was never going to exist
 
 ## Versions
 
-This release wires **`acemq-amqp` 0.7.16**, which is the current library release. The
-declared dependency is a range, `acemq-amqp[rabbitmq]>=0.7.16,<0.8`, so pip resolves the
+This release wires **`acemq-amqp` 0.7.17**, which is the current library release. The
+declared dependency is a range, `acemq-amqp[rabbitmq]>=0.7.17,<0.8`, so pip resolves the
 newest release inside it rather than a version pinned here going stale — and the range is
 also the constraint your application inherits.
 
 | | |
 |---|---|
-| `acemq-amqp-fastapi` | 0.1.9 |
-| `acemq-amqp` | `>=0.7.16,<0.8`, tested against 0.7.16 |
+| `acemq-amqp-fastapi` | 0.1.10 |
+| `acemq-amqp` | `>=0.7.17,<0.8`, tested against 0.7.17 |
 | Python | 3.10, 3.11, 3.12, 3.13 |
 | FastAPI | `>=0.110` |
 | `pydantic-settings` | `>=2.2` |
 
-The floor is 0.7.16. Nothing below 0.7.0 would do, because the health check calls
+The floor is 0.7.17. Nothing below 0.7.0 would do, because the health check calls
 `Connection.blocked`, which 0.6.0 does not have; 0.7.9 is where a stream reader resumes
 where it was after a reconnection, the publishes the library makes on your behalf are
 confirmed and kept when unroutable, and an idempotent handler that raises gives its claim
@@ -83,7 +83,9 @@ once the messages it passed over are back on the queue; 0.7.14 is where a dead l
 the broker refuses is requeued rather than dropped; 0.7.15 is where `mq.pipeline(name)` builds
 a pipeline and a step returning `NOTHING` before the last one ends the run as `ended_early`;
 0.7.16 is where a routing-slip or pipeline hop hands the next step every header it does not own
-(a tenant, a `traceparent`) and `record(..., envelope=...)` stamps the connection's origin. The ceiling is one minor ahead, because a pre-1.0
+(a tenant, a `traceparent`) and `record(..., envelope=...)` stamps the connection's origin;
+0.7.17 is where such a hop keeps the run's `x-acemq-first-seen`, so `acemq.pipeline.run.duration`
+measures the whole run rather than the last hop. The ceiling is one minor ahead, because a pre-1.0
 library puts its breaking changes in minor bumps. This package versions separately from the library and starts at
 0.1.0, as the Spring Boot starter does from `acemq-java-amqp`: it tracks FastAPI and
 Starlette's release train as much as AceMQ's.

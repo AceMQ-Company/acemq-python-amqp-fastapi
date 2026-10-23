@@ -14,6 +14,17 @@ chose. How a release is cut is in [RELEASING.md](RELEASING.md).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-10-22
+
+### Changed
+
+- **Requires `acemq-amqp` 0.7.17**, from 0.7.16 (`acemq-amqp[rabbitmq]>=0.7.17,<0.8`).
+  Nothing in this package's surface changed. What an application gains: a `follow_slip`
+  step, every step of `mq.pipeline(...)` and `then(...)` keep the run's
+  `x-acemq-first-seen`, so `acemq.pipeline.run.duration` measures the whole run instead of
+  only the last hop. A dashboard on that metric now shows whole-run times. The release check
+  reads the new floor back out of the built wheel.
+
 ## [0.1.9] - 2026-10-22
 
 ### Changed

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "acemq-amqp-fastapi"
-version = "0.1.9"
+version = "0.1.10"
 description = "FastAPI integration for AceMQ AMQP: a lifespan that owns the connection and the consumers, and dependencies for publishing from a route"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -24,7 +24,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-# The floor is 0.7.16. The health check calls ``Connection.blocked``, which 0.6.0
+# The floor is 0.7.17. The health check calls ``Connection.blocked``, which 0.6.0
 # does not have, so nothing below 0.7.0 would ever do; 0.7.9 is where a stream
 # reader resumes where it was after a reconnection, the publishes the library makes
 # on the application's behalf are confirmed and kept when unroutable, and an
@@ -39,7 +39,9 @@ classifiers = [
 # 0.7.15 is where `mq.pipeline(name)` builds a pipeline and a step returning
 # NOTHING before the last one ends the run as ended_early. 0.7.16 is where a
 # routing-slip or pipeline hop keeps the headers it does not own and an outbox
-# record made with the caller's envelope carries the connection's origin. An application on this package should not be able to resolve a release without those. The ceiling stays one minor ahead, because a pre-1.0
+# record made with the caller's envelope carries the connection's origin. 0.7.17 is
+# where a routing-slip or pipeline hop keeps the run's x-acemq-first-seen, so
+# acemq.pipeline.run.duration measures the whole run. An application on this package should not be able to resolve a release without those. The ceiling stays one minor ahead, because a pre-1.0
 # library puts its breaking changes in minor bumps — 0.7.0 itself rewrote the
 # blocked health detail — and moving it should be a decision somebody made.
 #
@@ -54,7 +56,7 @@ classifiers = [
 # ends up being maintained forever. The starter this is modelled on does not write
 # its own binder either; it uses Spring's.
 dependencies = [
-  "acemq-amqp[rabbitmq]>=0.7.16,<0.8",
+  "acemq-amqp[rabbitmq]>=0.7.17,<0.8",
   "fastapi>=0.110",
   "pydantic-settings>=2.2",
 ]

@@ -411,6 +411,10 @@ accepted only once the next one is out — so a failure to publish redelivers *t
 A step that changes anything should therefore be idempotent, which is what the
 [idempotency middleware](#pipelines-and-middleware) is for.
 
+Every hop keeps the run's `x-acemq-first-seen`, so `acemq.pipeline.run.duration` measures
+the whole run, from `start` to the last step. That is from `acemq-amqp` 0.7.17; up to 0.7.16
+each hop restarted it and the metric measured only the last hop.
+
 ## Scheduling
 
 A message to be delivered later, without a scheduler process or a cron:
